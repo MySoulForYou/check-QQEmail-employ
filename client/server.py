@@ -143,6 +143,8 @@ def shutdown_all_api():
 
 # --- 静态页面路由 ---
 @app.route('/')
+@app.route('/admin')
+@app.route('/admin/')
 def admin_index():
     return send_from_directory(ADMIN_DIR, 'index.html')
 
@@ -152,15 +154,21 @@ def admin_static(path):
     return send_from_directory(ADMIN_DIR, path)
 
 @app.route('/widget')
+@app.route('/widget/')
 def widget_index():
     return send_from_directory(WIDGET_DIR, 'index.html')
 
+@app.route('/widget/<path:path>')
+def widget_static(path):
+    return send_from_directory(WIDGET_DIR, path)
+
 @app.route('/<path:path>')
 def root_static(path):
-    if os.path.exists(os.path.join(WIDGET_DIR, path)):
-        return send_from_directory(WIDGET_DIR, path)
+    # 优先分发管理控制台资源，杜绝挂件样式污染主页面
     if os.path.exists(os.path.join(ADMIN_DIR, path)):
         return send_from_directory(ADMIN_DIR, path)
+    if os.path.exists(os.path.join(WIDGET_DIR, path)):
+        return send_from_directory(WIDGET_DIR, path)
     return "Not Found", 404
 
 def start_server(port=5555):

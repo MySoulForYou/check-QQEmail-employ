@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="820" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
-  <title id="title">招聘智能助手 V3.0 云原生双端架构全景流转图</title>
-  <desc id="desc">展示从云端 7x24h 邮件抓取与 DeepSeek AI 解析，到 Supabase Realtime 广播中枢，再到 Mac 原生桌面挂件与 Web 审核大厅的完整闭环。</desc>
+  <title id="title">OfferPilot 云原生双端架构全景流转图</title>
+  <desc id="desc">展示从云端 7x24h 邮件抓取与 DeepSeek AI 解析，到 Supabase Realtime 广播中枢，再到 Mac 原生桌面挂件与 Web 全景看板的完整闭环。</desc>
   <defs>
     <!-- Background Gradient -->
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
@@ -76,8 +76,8 @@
   <!-- Top Title Banner -->
   <g transform="translate(80, 70)">
     <rect x="0" y="-8" width="8" height="64" rx="4" fill="url(#glowBlue)"/>
-    <text x="24" y="28" class="main-title">🚀 招聘智能助手 V3.0 · 云原生架构流转图</text>
-    <text x="24" y="58" class="main-subtitle">7x24h 云端自动化提取 + Supabase 实时中枢 + Mac 原生透明挂件 + 网页审核看板</text>
+    <text x="24" y="28" class="main-title">OfferPilot · 云原生求职全景架构流转图</text>
+    <text x="24" y="58" class="main-subtitle">7x24h 云端自动化提取 + Supabase 实时中枢 + Mac 原生透明挂件 + 网页全景看板</text>
   </g>
 
   <!-- ==================== STEP 1: CLOUD WORKER ==================== -->
@@ -105,13 +105,13 @@
 
       <text y="120" class="card-desc" font-weight="700" fill="#a78bfa">🤖 DeepSeek AI 引擎</text>
       <text y="144" class="card-desc">• 结构化 JSON Output 模式</text>
-      <text y="168" class="card-desc">• 提取公司/时间/笔面试类型</text>
-      <text y="192" class="card-desc">• 智能研判 48h 紧急任务</text>
+      <text y="168" class="card-desc">• 提取企业/部门/岗位/时间</text>
+      <text y="192" class="card-desc">• 智能匹配 applications 投递</text>
 
       <line x1="0" y1="212" x2="208" y2="212" stroke="#334155" stroke-dasharray="4"/>
 
-      <text y="240" class="code-tag">status: "pending"</text>
-      <text y="264" class="card-desc">以未审核状态写入云数据库</text>
+      <text y="240" class="code-tag">stage_status: "pending"</text>
+      <text y="264" class="card-desc">以未审核门禁写入云数据库</text>
     </g>
   </g>
 
@@ -134,9 +134,9 @@
     <rect x="20" y="100" width="240" height="350" rx="14" fill="#0f172a" stroke="#1e293b"/>
 
     <g transform="translate(36, 128)">
-      <text y="0" class="card-desc" font-weight="700" fill="#c084fc">🗄️ PostgreSQL 核心存储</text>
-      <text y="24" class="card-desc">• tasks 表持久化招聘全量数据</text>
-      <text y="48" class="card-desc">• sync_state 记录全局 UID 书签</text>
+      <text y="0" class="card-desc" font-weight="700" fill="#c084fc">🗄️ PostgreSQL 主子表</text>
+      <text y="24" class="card-desc">• applications 投递档案</text>
+      <text y="48" class="card-desc">• application_stages 环节时序</text>
       
       <line x1="0" y1="68" x2="208" y2="68" stroke="#334155" stroke-dasharray="4"/>
 
@@ -148,7 +148,7 @@
       <line x1="0" y1="188" x2="208" y2="188" stroke="#334155" stroke-dasharray="4"/>
 
       <text y="216" class="card-desc" font-weight="700" fill="#34d399">🛡️ RLS 行级安全防火墙</text>
-      <text y="240" class="card-desc">• 客户端仅拥有限定更新权限</text>
+      <text y="240" class="card-desc">• 客户端仅拥有限定操作权限</text>
       <text y="264" class="card-desc">• 彻底杜绝恶意删库与越权</text>
     </g>
   </g>
@@ -166,14 +166,14 @@
     <text x="30" y="50" font-size="22">🖥️</text>
 
     <text x="76" y="36" class="step-badge" fill="#c084fc">STEP 03</text>
-    <text x="76" y="58" class="card-h1" font-size="19px">网页端 · 审核大厅</text>
+    <text x="76" y="58" class="card-h1" font-size="19px">网页端 · 审核看板</text>
 
     <g transform="translate(24, 88)">
       <text y="0" class="card-desc" font-weight="700" fill="#e2e8f0">http://127.0.0.1:5555/</text>
-      <text y="24" class="card-desc">1. 审核流转：过滤非关键邮件</text>
-      <text y="48" class="card-desc">2. 点击【通过展示】</text>
-      <text y="72" class="code-tag">status 变为 "approved"</text>
-      <text y="96" class="card-desc">3. 进度看板：聚合公司交互历史</text>
+      <text y="24" class="card-desc">1. 待审大厅：过滤垃圾邮件</text>
+      <text y="48" class="card-desc">2. 点击【✓ 通过放行】</text>
+      <text y="72" class="code-tag">流转为 "scheduled" 待办</text>
+      <text y="96" class="card-desc">3. 时间线抽屉：置顶最新待办</text>
     </g>
   </g>
 
@@ -192,11 +192,11 @@
     <text x="76" y="58" class="card-h1" font-size="19px">Mac 桌面原生挂件</text>
 
     <g transform="translate(24, 88)">
-      <text y="0" class="card-desc" font-weight="700" fill="#34d399">仅展示已审核任务 (approved)</text>
+      <text y="0" class="card-desc" font-weight="700" fill="#34d399">仅展示待办任务 (scheduled)</text>
       <text y="24" class="card-desc">• 玻璃拟态、呼吸灯紧急提醒</text>
       <text y="48" class="card-desc">• Dock 栏隐藏、桌面最底层固定</text>
       <text y="72" class="card-desc">• 桌面一键【✓】打勾完成</text>
-      <text y="96" class="code-tag">status 变为 "completed"</text>
+      <text y="96" class="code-tag">流转为 "awaiting_result"</text>
     </g>
   </g>
 

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="540" viewBox="0 0 1440 540" role="img" aria-labelledby="title desc">
-  <title id="title">招聘助手 V3.0 任务状态全生命周期流转图</title>
-  <desc id="desc">展示从邮件抓取进入 pending 状态，到 Web 审核大厅流转为 approved/rejected，再通过 Realtime WebSocket 推送到桌面挂件完成 completed 归档的全过程。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="580" viewBox="0 0 1400 580" role="img" aria-labelledby="title desc">
+  <title id="title">OfferPilot V3.2 任务状态全生命周期与时序回退流转图</title>
+  <desc id="desc">展示从邮件抓取进入 pending 准入门禁，到 Web 审核通过为 scheduled 待办，面试笔试完成流转为 awaiting_result 等待结果，以及 seq-1 无损时序回退的全过程。</desc>
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0f172a"/>
@@ -9,8 +9,8 @@
     </linearGradient>
 
     <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(30, 41, 59, 0.9)"/>
-      <stop offset="100%" stop-color="rgba(15, 23, 42, 0.95)"/>
+      <stop offset="0%" stop-color="rgba(30, 41, 59, 0.95)"/>
+      <stop offset="100%" stop-color="rgba(15, 23, 42, 0.98)"/>
     </linearGradient>
 
     <linearGradient id="glowBlue" x1="0" y1="0" x2="1" y2="0">
@@ -23,9 +23,14 @@
       <stop offset="100%" stop-color="#10b981"/>
     </linearGradient>
 
-    <linearGradient id="glowRed" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#f87171"/>
-      <stop offset="100%" stop-color="#ef4444"/>
+    <linearGradient id="glowPurple" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+
+    <linearGradient id="glowAmber" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
     </linearGradient>
 
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -38,111 +43,151 @@
     <marker id="arrowGreen" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#34d399"/>
     </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#a855f7"/>
+    </marker>
+    <marker id="arrowCyan" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#fbbf24"/>
+    </marker>
     <marker id="arrowRed" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f87171"/>
     </marker>
 
     <style>
-      .title { font: 900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #ffffff; }
-      .subtitle { font: 500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #94a3b8; }
-      .state-tag { font: 800 14px "SF Mono", Menlo, monospace; fill: #38bdf8; }
-      .state-title { font: 700 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #f8fafc; }
-      .desc { font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #cbd5e1; line-height: 1.5; }
-      .action-tag { font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #ffffff; }
+      .title { font: 900 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #ffffff; }
+      .subtitle { font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #94a3b8; }
+      .state-tag { font: 800 13px "SF Mono", Menlo, monospace; fill: #38bdf8; }
+      .state-title { font: 700 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #f8fafc; }
+      .desc { font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #cbd5e1; line-height: 1.55; }
+      .action-tag { font: 700 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; fill: #ffffff; }
     </style>
   </defs>
 
-  <rect width="1440" height="540" fill="url(#bgGrad)"/>
+  <rect width="1400" height="580" fill="url(#bgGrad)"/>
 
-  <!-- Top Title -->
-  <g transform="translate(60, 40)">
+  <!-- Top Header Title -->
+  <g transform="translate(50, 36)">
     <rect x="0" y="0" width="6" height="42" rx="3" fill="url(#glowGreen)"/>
-    <text x="20" y="24" class="title">🔄 招聘任务状态全生命周期状态机流转</text>
-    <text x="20" y="44" class="subtitle">严格的审核流转机制：从云端新邮件入库，到人工审核准入，再到桌面完成归档</text>
+    <text x="20" y="24" class="title">OfferPilot · 任务状态全生命周期与时序回退流转</text>
+    <text x="20" y="44" class="subtitle">标准 ATS 主子表架构：从待审准入门禁、日程待办流转，到 seq-1 无损时序回退</text>
   </g>
 
-  <!-- Step 0: Inbound Email -->
-  <g transform="translate(60, 180)">
-    <rect width="180" height="200" rx="16" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
-    <rect x="2" y="2" width="176" height="4" rx="2" fill="url(#glowBlue)"/>
-    <text x="20" y="36" font-size="24">📨</text>
-    <text x="20" y="70" class="state-title">邮件抓取</text>
-    <text x="20" y="100" class="desc">• IMAP 增量读取</text>
-    <text x="20" y="124" class="desc">• DeepSeek AI 提取</text>
-    <text x="20" y="148" class="desc">• 生成唯一 Task ID</text>
+  <!-- Node 0: Inbound Email -->
+  <g transform="translate(45, 195)">
+    <rect width="165" height="255" rx="16" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="2" y="2" width="161" height="4" rx="2" fill="url(#glowBlue)"/>
+    <text x="20" y="38" font-size="24">📨</text>
+    <text x="20" y="74" class="state-title">云端 AI 抓取</text>
+    <text x="20" y="112" class="desc">• 10天增量保护</text>
+    <text x="20" y="138" class="desc">• DeepSeek 实体提取</text>
+    <text x="20" y="164" class="desc">• 自动匹配投递档案</text>
+    <text x="20" y="190" class="desc">• 生成环节序号 seq</text>
+    <text x="20" y="216" class="desc">• 邮件 UID 幂等防重</text>
   </g>
 
-  <path d="M 245 280 L 290 280" fill="none" stroke="#38bdf8" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <!-- Arrow 0 -> 1 -->
+  <path d="M 215 320 L 255 320" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
 
-  <!-- State 1: PENDING -->
-  <g transform="translate(300, 150)">
-    <rect width="250" height="260" rx="18" fill="url(#cardGrad)" stroke="#38bdf8" stroke-width="2" filter="url(#shadow)"/>
-    <rect x="2" y="2" width="246" height="5" rx="2.5" fill="url(#glowBlue)"/>
+  <!-- Node 1: PENDING (Gatekeeper) -->
+  <g transform="translate(260, 195)">
+    <rect width="215" height="255" rx="18" fill="url(#cardGrad)" stroke="#38bdf8" stroke-width="2" filter="url(#shadow)"/>
+    <rect x="2" y="2" width="211" height="5" rx="2.5" fill="url(#glowBlue)"/>
     
-    <rect x="20" y="20" width="130" height="26" rx="6" fill="#0369a1" fill-opacity="0.4"/>
-    <text x="28" y="38" class="state-tag">status: 'pending'</text>
+    <rect x="18" y="18" width="120" height="24" rx="6" fill="#0369a1" fill-opacity="0.4"/>
+    <text x="26" y="35" class="state-tag">'pending'</text>
     
-    <text x="20" y="78" class="state-title">🖥️ 待审核状态</text>
-    <text x="20" y="110" class="desc">• 仅停留在【网页审核大厅】</text>
-    <text x="20" y="134" class="desc">• 桌面端挂件暂不上屏</text>
-    <text x="20" y="158" class="desc">• 杜绝未经审核的广告打扰</text>
-    <text x="20" y="182" class="desc">• 等待人工快速确认</text>
+    <text x="18" y="74" class="state-title">📬 待审准入门禁</text>
+    <text x="18" y="112" class="desc">• 停留在【待审大厅】</text>
+    <text x="18" y="138" class="desc">• 挂件与看板暂不上屏</text>
+    <text x="18" y="164" class="desc">• 拦截垃圾与误报邮件</text>
+    <text x="18" y="190" class="desc">• 保证求职档案纯净</text>
+    <text x="18" y="216" class="desc">• 人工一键确认放行</text>
   </g>
 
-  <!-- Split Branch Up (REJECTED) -->
-  <path d="M 555 240 C 600 240, 610 160, 660 160" fill="none" stroke="#f87171" stroke-width="2.5" stroke-dasharray="4,4" marker-end="url(#arrowRed)"/>
+  <!-- Branch Up: Ignored Box (Properly placed above pending with zero collision) -->
+  <path d="M 367 195 L 367 155" fill="none" stroke="#f87171" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrowRed)"/>
+  <rect x="330" y="165" width="75" height="20" rx="4" fill="#ef4444"/>
+  <text x="338" y="179" class="action-tag">✕ 点击忽略</text>
+
+  <!-- Ignored Node Top -->
+  <g transform="translate(280, 80)">
+    <rect width="175" height="65" rx="12" fill="url(#cardGrad)" stroke="#ef4444" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="14" y="28" class="state-title" font-size="15" fill="#f87171">📦 忽略归档箱</text>
+    <text x="14" y="48" class="desc" font-size="12">• 安全暂存，支持一键恢复</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 (Approve) -->
+  <path d="M 480 320 L 525 320" fill="none" stroke="#34d399" stroke-width="3" marker-end="url(#arrowGreen)"/>
+  <rect x="478" y="292" width="55" height="22" rx="4" fill="#10b981"/>
+  <text x="484" y="307" class="action-tag">✓ 通过</text>
+
+  <!-- Node 2: SCHEDULED -->
+  <g transform="translate(530, 195)">
+    <rect width="230" height="255" rx="18" fill="url(#cardGrad)" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+    <rect x="2" y="2" width="226" height="5" rx="2.5" fill="url(#glowGreen)"/>
+    
+    <rect x="18" y="18" width="130" height="24" rx="6" fill="#065f46" fill-opacity="0.4"/>
+    <text x="26" y="35" class="state-tag" fill="#34d399">'scheduled'</text>
+    
+    <text x="18" y="74" class="state-title">⏳ 最新待办 (置顶)</text>
+    <text x="18" y="112" class="desc">• 抽屉第 1 张发光大卡</text>
+    <text x="18" y="138" class="desc">• 桌面透明挂件常驻提醒</text>
+    <text x="18" y="164" class="desc">• 约定时间倒计时呼吸灯</text>
+    <text x="18" y="190" class="desc">• 会议凭据/账号一键复制</text>
+    <text x="18" y="216" class="desc">• 考完/面完一键流转</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 (Attend) -->
+  <path d="M 765 290 L 805 290" fill="none" stroke="#a855f7" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+  <rect x="762" y="262" width="76" height="22" rx="4" fill="#7e22ce"/>
+  <text x="768" y="277" class="action-tag">✓ 标为已参加</text>
+
+  <!-- Arrow 3 -> 2 (Revert Back to Scheduled) -->
+  <path d="M 805 365 L 768 365" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrowCyan)"/>
+  <rect x="766" y="372" width="70" height="20" rx="4" fill="#0284c7"/>
+  <text x="772" y="386" class="action-tag">↩ 撤回待办</text>
+
+  <!-- Node 3: AWAITING_RESULT -->
+  <g transform="translate(810, 195)">
+    <rect width="230" height="255" rx="18" fill="url(#cardGrad)" stroke="#a855f7" stroke-width="2" filter="url(#shadow)"/>
+    <rect x="2" y="2" width="226" height="5" rx="2.5" fill="url(#glowPurple)"/>
+    
+    <rect x="18" y="18" width="155" height="24" rx="6" fill="#3b0764" fill-opacity="0.4"/>
+    <text x="26" y="35" class="state-tag" fill="#c084fc">'awaiting_result'</text>
+    
+    <text x="18" y="74" class="state-title">🎯 等待本轮结果</text>
+    <text x="18" y="112" class="desc">• 笔试已交卷 / 面试已参加</text>
+    <text x="18" y="138" class="desc">• 桌面挂件清除待办</text>
+    <text x="18" y="164" class="desc">• 支持手误【↩ 撤回重设】</text>
+    <text x="18" y="190" class="desc">• 收到下一轮自动晋升 passed</text>
+    <text x="18" y="216" class="desc">• 静候好消息通知</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 (Offer) -->
+  <path d="M 1045 320 L 1085 320" fill="none" stroke="#fbbf24" stroke-width="3" marker-end="url(#arrowAmber)"/>
+  <rect x="1040" y="292" width="72" height="22" rx="4" fill="#d97706"/>
+  <text x="1046" y="307" class="action-tag">🏆 斩获Offer</text>
+
+  <!-- Node 4: OFFER / PASSED -->
+  <g transform="translate(1090, 195)">
+    <rect width="155" height="255" rx="18" fill="url(#cardGrad)" stroke="#fbbf24" stroke-width="2" filter="url(#shadow)"/>
+    <rect x="2" y="2" width="151" height="5" rx="2.5" fill="url(#glowAmber)"/>
+    <text x="16" y="38" font-size="24">🏆</text>
+    <text x="16" y="74" class="state-title" fill="#fbbf24">录用 / 签约</text>
+    <text x="16" y="112" class="desc">• overall: 'offered'</text>
+    <text x="16" y="138" class="desc">• 点亮金色勋章</text>
+    <text x="16" y="164" class="desc">• 支持主动归档</text>
+    <text x="16" y="190" class="desc">• 求职圆满达成 🎉</text>
+  </g>
+
+  <!-- Bottom Rollback Path (Clear, non-overlapping rollback annotation) -->
+  <path d="M 645 455 L 645 505 Q 645 520 630 520 L 460 520" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrowAmber)"/>
   
-  <rect x="580" y="170" width="80" height="22" rx="4" fill="#ef4444"/>
-  <text x="590" y="186" class="action-tag">点击忽略</text>
-
-  <!-- State: REJECTED -->
-  <g transform="translate(670, 110)">
-    <rect width="210" height="120" rx="14" fill="url(#cardGrad)" stroke="#ef4444" stroke-width="1.5" filter="url(#shadow)"/>
-    <text x="16" y="32" class="state-tag" fill="#f87171">status: 'rejected'</text>
-    <text x="16" y="60" class="state-title" font-size="16px">🗑️ 标记误报 / 忽略</text>
-    <text x="16" y="86" class="desc">• is_deleted 标为 true</text>
-    <text x="16" y="106" class="desc">• 全端彻底隐藏过滤</text>
-  </g>
-
-  <!-- Split Branch Down (APPROVED) -->
-  <path d="M 555 310 C 600 310, 610 370, 660 370" fill="none" stroke="#34d399" stroke-width="3" marker-end="url(#arrowGreen)"/>
-
-  <rect x="575" y="320" width="90" height="22" rx="4" fill="#10b981"/>
-  <text x="583" y="336" class="action-tag">点击通过展示</text>
-
-  <!-- State 2: APPROVED -->
-  <g transform="translate(670, 270)">
-    <rect width="270" height="210" rx="18" fill="url(#cardGrad)" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
-    <rect x="2" y="2" width="266" height="5" rx="2.5" fill="url(#glowGreen)"/>
-
-    <rect x="20" y="20" width="140" height="26" rx="6" fill="#065f46" fill-opacity="0.4"/>
-    <text x="28" y="38" class="state-tag" fill="#34d399">status: 'approved'</text>
-
-    <text x="20" y="76" class="state-title">💻 桌面待处理展示</text>
-    <text x="20" y="106" class="desc">• ⚡️ WebSocket 毫秒广播推流</text>
-    <text x="20" y="130" class="desc">• 桌面透明挂件自动淡入上屏</text>
-    <text x="20" y="154" class="desc">• 48h 任务开启红色呼吸灯</text>
-    <text x="20" y="178" class="desc">• 实时提醒重要笔试与面试</text>
-  </g>
-
-  <!-- Transition: APPROVED -> COMPLETED -->
-  <path d="M 945 375 L 1025 375" fill="none" stroke="#34d399" stroke-width="3" marker-end="url(#arrowGreen)"/>
-
-  <rect x="948" y="348" width="75" height="20" rx="4" fill="#3b82f6"/>
-  <text x="954" y="362" class="action-tag">点击打勾 ✓</text>
-
-  <!-- State 3: COMPLETED -->
-  <g transform="translate(1035, 270)">
-    <rect width="345" height="210" rx="18" fill="url(#cardGrad)" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
-    <rect x="2" y="2" width="341" height="5" rx="2.5" fill="url(#glowBlue)"/>
-
-    <rect x="20" y="20" width="150" height="26" rx="6" fill="#1e3a8a" fill-opacity="0.4"/>
-    <text x="28" y="38" class="state-tag" fill="#60a5fa">status: 'completed'</text>
-
-    <text x="20" y="76" class="state-title">📜 历史归档与进度看板</text>
-    <text x="20" y="106" class="desc">• 挂件卡片自动淡出，折叠进【历史记录】</text>
-    <text x="20" y="130" class="desc">• 网页【招聘看板】自动更新该公司状态为完成</text>
-    <text x="20" y="154" class="desc">• 记录完成时间戳 updated_at</text>
-    <text x="20" y="178" class="desc">• 便于全盘复盘与求职轨迹追踪</text>
+  <g transform="translate(460, 498)">
+    <rect width="320" height="30" rx="6" fill="#78350f" stroke="#fbbf24" stroke-width="1"/>
+    <text x="12" y="19" font-size="12" font-weight="700" fill="#fef3c7">↩ 手误撤销：自动无损回滚至上一轮 (seq - 1)</text>
   </g>
 </svg>

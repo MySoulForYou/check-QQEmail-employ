@@ -1,19 +1,23 @@
 <div align="center">
 
-# 🚀 OfferPilot (招聘智能助手 V3.0)
+# OfferPilot · 求职全景智能助手
 
-**一个云原生、高颜值、多端实时同步的个人求职全流程自动化管理体系**
+**云原生 · 高颜值 · 多端实时同步的个人求职全流程自动化管理体系**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Supabase](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com/)
-[![DeepSeek AI](https://img.shields.io/badge/AI%20Engine-DeepSeek%20V3-4D6BFE?style=flat-square)](https://www.deepseek.com/)
+[![Database](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com/)
+[![AI Engine](https://img.shields.io/badge/AI%20Engine-DeepSeek%20V3-4D6BFE?style=flat-square)](https://www.deepseek.com/)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20Desktop%20%7C%20Web-000000?style=flat-square&logo=apple&logoColor=white)]()
 [![GitHub Actions](https://img.shields.io/badge/CI%2FCD-7x24h%20Cloud%20Sync-2088FF?style=flat-square&logo=github-actions&logoColor=white)](.github/workflows/sync.yml)
 
 <br/>
 
-[核心特性](#-核心架构特性) • [系统架构](#-系统架构全景) • [新手部署全攻略 (必读)](#-从零到一新手极速部署指南-fork-零代码模式) • [客户端交互使用指引](#-客户端日常交互使用指引) • [状态生命周期](#-任务状态全生命周期流转) • [工程结构](#-工程目录结构) • [安全隔离](#-开源安全与机密隔离)
+![OfferPilot 全景产品演示图](docs/assets/offerpilot_product_showcase.jpg)
+
+<br/>
+
+[🌟 核心特性](#-核心特性) • [📐 系统架构全景](#-系统架构全景) • [🛠️ 新手部署全攻略 (必读)](#-从零到一新手极速部署指南-fork-零代码模式) • [🎮 客户端交互使用指引](#-客户端日常交互使用指引) • [🔄 状态生命周期与回退](#-任务状态全生命周期流转) • [📂 工程目录结构](#-工程目录结构) • [🔒 安全隔离](#-开源安全与机密隔离)
 
 </div>
 
@@ -21,17 +25,40 @@
 
 ## 📖 项目简介
 
-在求职季，海量的招聘进度通知（笔试测评、AI面试、业务面试、Offer录取、资料补充）分散在各大邮件中，极易被日常邮件淹没、遗漏或手忙脚乱。
+**OfferPilot (求职全景智能助手 V3.2)** 专为求职季打造，自动化聚合分散在各大邮件中的笔试与面试通知，实现 **“云端 7x24h 静默抓取 + Mac 桌面透明挂件 + Web 全景看板”** 的无缝协同闭环。
 
-**OfferPilot (招聘智能助手 V3.0)** 彻底推翻了传统本地客户端的常驻轮询模式，重构为 **“云端大脑 7x24h 自动化提取 + Supabase 实时流转中枢 + Mac 原生透明毛玻璃挂件 + 网页端审核大厅与进度看板”** 的全自动闭环架构。
+---
 
-全流程遵循 **真·零运维成本 (100% Free Tier 免费额度)** 与 **机密凭据绝对物理隔离** 原则。
+## 🌟 核心特性
+
+<table width="100%">
+  <tr>
+    <td width="50%" valign="top">
+      <h4>🗄️ 主子表求职架构</h4>
+      <p>企业、部门与岗位物理隔离，笔试面试各轮次按时间线独立归档，多投不串线。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h4>🔝 最新进展置顶</h4>
+      <p>抽屉首屏直击当前最新待办，会议凭据一键复制与倒计时提醒，历史环节按序沉淀。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>🔄 状态闭环与无损回退</h4>
+      <p>待办环节一键标为已参加；手误时支持一键撤销并安全回滚至上一轮进度。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h4>💻 零常驻云抓取 + 桌面挂件</h4>
+      <p>GitHub Actions 云端静默提取，macOS 毛玻璃透明挂件毫秒级同步日程。</p>
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## 📐 系统架构全景
 
-![招聘助手 V3.0 工作流程全景图](docs/assets/recruitment-assistant-v3-flow.svg)
+![OfferPilot 云原生架构全景流转图](docs/assets/recruitment-assistant-v3-flow.svg)
 
 ---
 
@@ -61,40 +88,66 @@
 * 进入项目左侧导航栏的 **【SQL Editor】**，粘贴以下一键初始化建表代码并点击 **【Run】**：
 
 ```sql
--- 1. 创建招聘任务表
-CREATE TABLE tasks (
-    id TEXT PRIMARY KEY,
-    company TEXT,
-    time TEXT,
-    type TEXT,
-    subject TEXT,
-    notes TEXT,
-    urgent BOOLEAN DEFAULT FALSE,
-    status TEXT DEFAULT 'pending', -- pending(待审核) | approved(已通过) | completed(已完成) | rejected(已忽略)
-    is_deleted BOOLEAN DEFAULT FALSE,
+-- 1. 清理旧表 (全新部署时执行)
+DROP TABLE IF EXISTS tasks CASCADE;
+DROP TABLE IF EXISTS application_stages CASCADE;
+DROP TABLE IF EXISTS applications CASCADE;
+DROP TABLE IF EXISTS sync_state CASCADE;
+
+-- 2. 创建求职投递单主表 (Applications)
+CREATE TABLE applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company TEXT NOT NULL,
+    department TEXT DEFAULT '',
+    position TEXT NOT NULL,
+    recruitment_season TEXT DEFAULT '2027届秋招',
+    current_stage_name TEXT DEFAULT '网申提交',
+    overall_status TEXT DEFAULT 'active', -- active(推进中) | offered(已录用) | failed(已结束) | archived(已归档)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. 创建增量同步书签表
+-- 3. 创建环节流转明细子表 (Application Stages)
+CREATE TABLE application_stages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    application_id UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    seq INT NOT NULL DEFAULT 1, -- 环节时序序号 (1, 2, 3...)
+    stage_name TEXT NOT NULL,
+    stage_status TEXT DEFAULT 'pending', -- pending(待审) | scheduled(待办) | awaiting_result(待结果) | passed(通过) | failed(未通过) | ignored(忽略)
+    schedule_time TEXT DEFAULT '待定',
+    meeting_info TEXT DEFAULT '',
+    next_expectation TEXT DEFAULT '',
+    raw_email_id TEXT DEFAULT '', -- 邮件 UID 幂等防重
+    raw_subject TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. 创建增量同步书签表 (初始化从最近 10 天开始扫描)
 CREATE TABLE sync_state (
     key TEXT PRIMARY KEY,
     last_uid BIGINT DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+INSERT INTO sync_state (key, last_uid) VALUES ('email_sync', 0);
 
--- 3. 初始化全局同步书签
-INSERT INTO sync_state (key, last_uid) VALUES ('email_sync', 0) ON CONFLICT DO NOTHING;
+-- 5. 创建高性能索引
+CREATE INDEX idx_stages_app_seq ON application_stages(application_id, seq DESC);
+CREATE INDEX idx_stages_status ON application_stages(stage_status);
+CREATE INDEX idx_app_company ON applications(company, department, position);
 
--- 4. 开启 WebSocket Realtime 实时全端广播
-ALTER PUBLICATION supabase_realtime ADD TABLE tasks;
+-- 6. 开启 WebSocket Realtime 实时全端推流
+ALTER PUBLICATION supabase_realtime ADD TABLE applications;
+ALTER PUBLICATION supabase_realtime ADD TABLE application_stages;
 
--- 5. 开启 RLS 行级安全策略 (保障公开访问安全)
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+-- 7. 开启 RLS 行级安全策略 (保障公网公开访问安全)
+ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE application_stages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_state ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read tasks" ON tasks FOR SELECT USING (true);
-CREATE POLICY "Allow public update tasks" ON tasks FOR UPDATE USING (true);
-CREATE POLICY "Allow public read sync_state" ON sync_state FOR SELECT USING (true);
+CREATE POLICY "Allow public all applications" ON applications FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all application_stages" ON application_stages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read sync_state" ON sync_state FOR ALL USING (true) WITH CHECK (true);
 ```
 
 * 进入项目 **Project Settings ➡️ API**，复制以下 3 个核心凭证：
@@ -136,7 +189,7 @@ CREATE POLICY "Allow public read sync_state" ON sync_state FOR SELECT USING (tru
 ### 💻 阶段三：下载 Mac 客户端一键开箱即用 (约 1 分钟)
 
 #### 1. 下载并安装 Mac App
-* 在本项目的 **[Releases 发行版页面](../../releases)** 下载最新的 **`OfferPilot-v3.0.0-macOS.dmg`** 安装包；
+* 在本项目的 **[Releases 发行版页面](../../releases)** 下载最新的 **`OfferPilot-v3.2.0-macOS.dmg`** 安装包；
 * 双击打开 DMG，将 **`OfferPilot.app`** 拖拽到“应用程序 (Applications)”文件夹。
 
 #### 2. 可视化配置向导 (仅需一次)
@@ -156,9 +209,9 @@ OfferPilot 针对 macOS 系统深度调优，带来了极其自然与丝滑的�
 
 ### 🖥️ 2. 挂件操作与分层常驻
 * **⚙️ 设置数据库**：点击挂件右上角齿轮，可随时呼出配置窗口修改 Supabase 凭据；
-* **📊 管理大厅**：点击右上角看板图标，直接在浏览器中打开审核大厅（[http://127.0.0.1:5555/](http://127.0.0.1:5555/)）；
+* **📊 全景看板**：点击右上角看板图标，直接在浏览器中打开全景控制台（[http://127.0.0.1:5555/](http://127.0.0.1:5555/)）；
 * **✕ 仅收起挂件**：点击挂件右上角 `✕`，仅收起/隐藏桌面挂件，**后台 Web 管理大厅保持常驻可用**；
-* **✓ 标记完成**：点击待办卡片右侧的勾选按钮，任务状态毫秒级流转为已完成并折叠归档。
+* **✓ 标记完成**：点击待办卡片右侧的勾选按钮，环节状态流转为等待结果并折叠。
 
 ---
 
@@ -183,7 +236,7 @@ OfferPilot 针对 macOS 系统深度调优，带来了极其自然与丝滑的�
 │   │   ├── style.css
 │   │   ├── app.js
 │   │   └── supabase.js           # 零依赖自研轻量 Supabase 通信 SDK
-│   └── admin/                    # 审核管理大厅与求职看板前端 (http://127.0.0.1:5555/)
+│   └── admin/                    # 全景管理控制台与审核大厅前端 (http://127.0.0.1:5555/)
 │       ├── index.html
 │       ├── style.css
 │       ├── app.js
@@ -195,8 +248,8 @@ OfferPilot 针对 macOS 系统深度调优，带来了极其自然与丝滑的�
 │   └── build_mac_app.sh          # 独立 OfferPilot.app 与 .dmg 安装镜像自动化构建打包脚本
 │
 ├── 📖 docs/                       # 【设计文档与设计切图】
-│   ├── architecture_plan.md      # V3.0 跨端云原生架构设计实施方案
-│   └── assets/                   # 高清矢量架构图 (SVG) 与 Apple AppIcon.icns
+│   ├── architecture_plan.md      # 跨端云原生架构设计实施方案
+│   └── assets/                   # 高清产品演示图 (JPG)、矢量架构图 (SVG) 与 Apple AppIcon.icns
 │
 ├── .github/workflows/
 │   └── sync.yml                  # ☁️ GitHub Actions 自动化定时工作流
