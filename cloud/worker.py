@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import logging
 import httpx
+from urllib.parse import urlencode
 from openai import OpenAI
 
 # 配置日志输出格式
@@ -234,36 +235,34 @@ class CloudSyncWorker:
             if raw_email_id:
                 check_url = f"{self.supabase_url}/rest/v1/application_stages?raw_email_id=eq.{raw_email_id}&select=id"
                 resp_chk = httpx.get(check_url, headers=self.sb_headers, timeout=10.0)
-                if resp_chk.status_code == 200 and resp_chk.json():
+                resp_chk.raise_for_status()
+                if resp_chk.json():
                     logging.info(f"⏭️ 邮件 UID {raw_email_id} 已存在，跳过重复写入")
                     return True
 
-            # 2. 查询是否已存在对应的投递单 (Applications)
-            # 匹配规则: company + position + overall_status='active' (若有 department 也一并精准匹配)
-            query_url = f"{self.supabase_url}/rest/v1/applications?company=eq.{company}&position=eq.{position}&overall_status=eq.active&select=id,current_stage_name"
+            # 只自动合并明确的同一岗位；已录用的投递也可接收入职通知。
+            # 岗位名称缺失/别名不做猜测合并，留给人工确认。
+            params = {"company": f"eq.{company}", "position": f"eq.{position}",
+                      "overall_status": "in.(active,offered)", "select": "id,current_stage_name,department"}
             if department:
-                query_url += f"&department=eq.{department}"
+                params["department"] = f"eq.{department}"
+            query_url = f"{self.supabase_url}/rest/v1/applications?{urlencode(params)}"
 
             resp_app = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
+            resp_app.raise_for_status()
+            candidates = resp_app.json()
+            if len(candidates) > 1:
+                logging.error("同一岗位存在多个候选投递单，请先人工合并后重试")
+                return False
             app_id = None
 
-            if resp_app.status_code == 200 and resp_app.json():
+            if candidates:
                 # 复用已有投递单
                 app_data = resp_app.json()[0]
                 app_id = app_data["id"]
                 logging.info(f"📂 匹配到已有投递单: [{company}] {position} (ID: {app_id})")
 
-                # 更新主表最新环节快照与更新时间
-                update_url = f"{self.supabase_url}/rest/v1/applications?id=eq.{app_id}"
-                httpx.patch(
-                    update_url,
-                    headers=self.sb_headers,
-                    json={
-                        "current_stage_name": stage_name,
-                        "updated_at": datetime.now().isoformat()
-                    },
-                    timeout=10.0
-                )
+                # 待审邮件不改变已确认的主表进度。
             else:
                 # 新建投递单
                 headers_return = dict(self.sb_headers)
@@ -274,7 +273,7 @@ class CloudSyncWorker:
                     "department": department,
                     "position": position,
                     "recruitment_season": "2027届秋招",
-                    "current_stage_name": stage_name,
+                    "current_stage_name": "待审核",
                     "overall_status": "active",
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat()
@@ -297,8 +296,9 @@ class CloudSyncWorker:
             # 3. 计算下一轮 seq 序号
             seq_url = f"{self.supabase_url}/rest/v1/application_stages?application_id=eq.{app_id}&select=seq&order=seq.desc&limit=1"
             resp_seq = httpx.get(seq_url, headers=self.sb_headers, timeout=10.0)
+            resp_seq.raise_for_status()
             next_seq = 1
-            if resp_seq.status_code == 200 and resp_seq.json():
+            if resp_seq.json():
                 next_seq = int(resp_seq.json()[0].get("seq", 0)) + 1
 
             # 4. 插入 application_stages 子表
@@ -364,7 +364,7 @@ class CloudSyncWorker:
             status, messages = mail.uid('search', None, 'SINCE', ten_days_ago)
 
         if status == 'OK' and messages[0]:
-            all_mail_ids = messages[0].split()
+            all_mail_ids = sorted(messages[0].split(), key=int)
         else:
             all_mail_ids = []
 
@@ -400,8 +400,9 @@ class CloudSyncWorker:
 
             # 获取正文
             status, data = mail.uid('fetch', m_id, '(RFC822)')
-            if status != 'OK' or not data[0]:
-                continue
+            if status != 'OK' or not data or not data[0]:
+                logging.error('邮件读取失败，停止推进书签，等待下次重试')
+                break
 
             msg = email.message_from_bytes(data[0][1])
             body = self.parse_email_content(msg)
@@ -409,9 +410,14 @@ class CloudSyncWorker:
             # 调用 AI 进行分析
             try:
                 ai_result = self.parse_with_ai(subject, body)
-                if ai_result and ai_result.get("is_recruitment"):
+                if not isinstance(ai_result, dict) or not isinstance(ai_result.get("is_recruitment"), bool):
+                    raise ValueError("AI 返回结果缺少有效 is_recruitment，保留邮件等待重试")
+                if ai_result["is_recruitment"]:
                     if self.upsert_recruitment_event(ai_result, m_id_str, subject):
                         new_tasks_count += 1
+                    else:
+                        logging.error("邮件入库失败，停止推进书签，等待下次重试")
+                        break
                 else:
                     logging.info(f"⏭️ 忽略非招聘邮件: {subject[:30]}...")
 

@@ -398,6 +398,10 @@
                                 <span>🎉 <strong>正式斩获录用 / Offer</strong> (求职看板置顶庆祝)</span>
                             </label>
                             <label class="radio-label">
+                                <input type="radio" name="edit-stage-status" value="failed">
+                                <span>未通过</span>
+                            </label>
+                            <label class="radio-label">
                                 <input type="radio" name="edit-stage-status" value="archived">
                                 <span>❌ <strong>流程终止 / 感谢信 / 放弃</strong> (移入已归档箱)</span>
                             </label>
@@ -529,6 +533,7 @@
     <!-- 脚本加载 -->
     <script src="/config.js"></script>
     <script src="/admin/supabase.js"></script>
+    <script src="/admin/progress.js"></script>
     <script src="/admin/app.js"></script>
 </body>
 </html>

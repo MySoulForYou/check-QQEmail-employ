@@ -5,6 +5,7 @@
 
 import { supabaseService } from './supabase.js';
 import { triggerHaptic } from './haptics.js';
+const { isConfirmedOffer } = globalThis.OfferPilotProgress;
 
 // ==================== 全局状态管理 ====================
 const state = {
@@ -339,7 +340,7 @@ function updateKPIStats() {
     const latestStage = stages[stages.length - 1];
     const category = getStageProgressCategory(app, latestStage);
 
-    if (category === 'offer' || app.overall_status === 'offered' || latestStage.stage_status === 'offered') {
+    if (isConfirmedOffer(app, latestStage)) {
       offerCount++;
     } else if (latestStage.stage_status === 'awaiting_result') {
       waitingResultsCount++;
@@ -458,7 +459,7 @@ function renderDashboard() {
     list = list.filter(app => app.latestStage && app.latestStage.stage_status === 'awaiting_result');
   } else if (state.activeBento === 'offer') {
     // 已录用：overall_status === 'offered' 或最新环节为 offer
-    list = list.filter(app => app.progressCategory === 'offer' || app.overall_status === 'offered');
+    list = list.filter(app => isConfirmedOffer(app, app.latestStage));
   }
 
   // 5. 下层 Filter Chips 流程进度阶段过滤 (全部 / 测评 / 笔试 / 面试 / Offer / 终止)
@@ -796,8 +797,8 @@ window.approveCurrentDrawerStage = async function() {
   if (!state.currentDrawerStageId) return;
   triggerHaptic('heavy');
   try {
-    await supabaseService.updateStageStatus(state.currentDrawerStageId, 'scheduled');
-    showToast('⚡️ 准入成功！已加入待办日程');
+    await supabaseService.approveStage(state.currentDrawerStageId);
+    showToast('⚡️ 审核成功，请核对求职进度与待办');
     window.closeAIDrawerDirect();
     loadAllData(false);
   } catch (err) {
