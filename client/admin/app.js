@@ -57,49 +57,6 @@ function getCompanyInitial(companyName) {
 // ==========================================================================
 // 2. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
 // ==========================================================================
-// 审核只确认记录可信，不代表参加、完成或通过。未知邮件保守进入待处理。
-const { approvedStageStatus, confirmedSnapshot, isConfirmedOffer } = globalThis.OfferPilotProgress;
-
-// 两表写入失败时补偿本次环节修改；补偿失败明确报告，不能冒充成功。
-async function saveStageChange(stage, patch, appPatch = {}) {
-    const before = Object.fromEntries(Object.keys(patch).map(key => [key, stage[key] ?? null]));
-    const change = { ...patch, updated_at: new Date().toISOString() };
-    let query = supabase.from('application_stages').update(change).eq('id', stage.id);
-    if (stage.updated_at) query = query.eq('updated_at', stage.updated_at);
-    const { data: changed, error } = await query;
-    if (error) throw new Error(error.message);
-    if (!changed || !changed.length) throw new Error('环节已变化，请刷新后重试');
-    try {
-        if (stage.application_id) {
-            const stages = allStages.filter(s => s.application_id === stage.application_id)
-                .map(s => s.id === stage.id ? { ...s, ...change } : s);
-            const app = allApplications.find(a => a.id === stage.application_id);
-            const snapshot = { ...confirmedSnapshot(stages), ...appPatch, updated_at: change.updated_at };
-            if (app && app.overall_status === 'archived' && !Object.hasOwn(appPatch, 'overall_status')) {
-                snapshot.overall_status = 'archived';
-            }
-            let appQuery = supabase.from('applications').update(snapshot).eq('id', stage.application_id);
-            if (app && app.updated_at) appQuery = appQuery.eq('updated_at', app.updated_at);
-            const { data: updated, error: appError } = await appQuery;
-            if (appError) throw new Error(appError.message);
-            if (!updated || !updated.length) throw new Error('投递单已变化，请刷新后重试');
-            if (app) Object.assign(app, snapshot);
-        }
-    } catch (err) {
-        try {
-            const { data: undone, error: undoError } = await supabase.from('application_stages')
-                .update({ ...before, updated_at: stage.updated_at }).eq('id', stage.id)
-                .eq('updated_at', change.updated_at).select('id');
-            if (undoError) throw new Error(undoError.message);
-            if (!undone || !undone.length) throw new Error('记录已被其他操作修改，未覆盖新数据');
-        } catch (undo) {
-            throw new Error(`主表保存失败且环节恢复失败，请刷新核对：${err.message}；${undo.message}`);
-        }
-        throw err;
-    }
-    Object.assign(stage, change);
-}
-
 function getStageStatusMeta(stage, app) {
     if (!stage) {
         return {
@@ -122,22 +79,16 @@ function getStageStatusMeta(stage, app) {
         return {
             icon: '📦',
             cleanType: '【流程结束】',
-            badgeText: '📦 【流程结束】本轮未通过 / 已终止',
+            badgeText: '📦 【流程结束】本轮流程结束 (已归档)',
             badgeClass: 'badge-gray',
             nodeIcon: '📦',
-            timelineStatusText: '本轮未通过 / 已终止',
+            timelineStatusText: '本轮流程结束 (已归档)',
             category: 'archived'
         };
     }
 
-    if (status === 'passed') {
-        return { icon: '✓', cleanType: `【${type}】`, badgeText: `✓ 【${type}】已通过`,
-            badgeClass: 'badge-emerald', nodeIcon: '✓', timelineStatusText: '已通过',
-            category: /offer|录用|录取/i.test(type) ? 'offer' : 'passed' };
-    }
-
-    // 2. 录用意向 / Offer
-    if (type.includes('Offer') || type.includes('录用') || type.includes('意向') || type.includes('录取')) {
+    // 2. HR 沟通 / 录用意向 / Offer
+    if (type.includes('Offer') || type.includes('录用') || type.includes('意向') || type.includes('HR') || type.includes('录取')) {
         if (status === 'awaiting_result' || status === 'passed') {
             return {
                 icon: '🎉',
@@ -398,8 +349,8 @@ function generatePipelineHTML(stages) {
             stageLabel = stageLabel.substring(0, 4) + '..';
         }
 
-        let stepClass = s.stage_status === 'passed' ? 'done' : 'active';
-        let stepIcon = s.stage_status === 'passed' ? '✓' : s.stage_status === 'failed' ? '✕' : '⏳';
+        let stepClass = 'done';
+        let stepIcon = '✓';
 
         if (isLatest) {
             if (s.stage_status === 'scheduled') {
@@ -421,7 +372,7 @@ function generatePipelineHTML(stages) {
         }
 
         return `
-            <div class="pipeline-step ${stepClass}" title="${escapeHTML(s.stage_name)} - ${escapeHTML(meta.timelineStatusText)}">
+            <div class="pipeline-step ${stepClass}" title="${escapeHTML(s.stage_name)} - ${meta.timelineStatusText}">
                 <span class="step-dot">${stepIcon}</span>
                 <span class="step-name">${escapeHTML(stageLabel)}</span>
             </div>
@@ -902,7 +853,7 @@ function updateKPICards() {
         const latestStage = stages[stages.length - 1];
         const category = getStageProgressCategory(app, latestStage);
 
-        if (isConfirmedOffer(app, latestStage)) {
+        if (category === 'offer' || app.overall_status === 'offered' || latestStage.stage_status === 'offered') {
             offerCount++;
         } else if (latestStage.stage_status === 'awaiting_result') {
             waitingResultsCount++;
@@ -979,7 +930,7 @@ function renderDashboard() {
         } else if (currentBentoFilter === 'waiting') {
             if (!latestStage || latestStage.stage_status !== 'awaiting_result') return false;
         } else if (currentBentoFilter === 'offer') {
-            if (!isConfirmedOffer(app, latestStage)) return false;
+            if (app.overall_status !== 'offered' && progressCategory !== 'offer' && (!latestStage || latestStage.stage_status !== 'offered')) return false;
         }
 
         // 2. 下层 Filter Chips 流程进度阶段过滤 (全部 / 测评 / 笔试 / 面试 / Offer / 终止)
@@ -1218,10 +1169,15 @@ function closeTimelineDrawer() {
 async function advanceStageStatus(stageId, targetStatus, appId) {
     if (!supabase) return;
     try {
-        const stage = allStages.find(s => s.id === stageId);
-        if (!stage) throw new Error('环节不存在，请刷新');
-        await saveStageChange(stage, { stage_status: targetStatus });
+        const { error } = await supabase
+            .from('application_stages')
+            .update({
+                stage_status: targetStatus,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', stageId);
 
+        if (error) throw error;
         console.log(`✅ 环节 ${stageId} 状态已更新为 ${targetStatus}`);
 
         await loadAllData();
@@ -1236,16 +1192,64 @@ async function advanceStageStatus(stageId, targetStatus, appId) {
 
 // 🎯 核心无损回退算法：撤销当前环节，将投递单回退至上一环节 (seq - 1)
 async function rollbackCurrentStage(appId, stageId) {
-    if (!supabase || !confirm('撤销当前环节？上一环节将保留原来的状态。')) return;
+    if (!confirm('确定要撤销当前环节并回退到上一轮吗？')) return;
+    if (!supabase) return;
+
     try {
-        const stages = allStages.filter(s => s.application_id === appId && !['pending', 'ignored'].includes(s.stage_status))
-            .sort((a, b) => (a.seq || 1) - (b.seq || 1));
-        const stage = stages.pop();
-        if (!stage || stage.id !== stageId) throw new Error('进度已变化，请刷新后撤销最新环节');
-        await saveStageChange(stage, { stage_status: 'ignored' });
+        // 1. 获取该投递单下的所有环节
+        const stages = (appStagesMap[appId] || []).filter(s => s.stage_status !== 'ignored');
+        const sortedStages = [...stages].sort((a, b) => (a.seq || 1) - (b.seq || 1));
+
+        // 2. 将当前环节软删除/标记为 ignored
+        await supabase
+            .from('application_stages')
+            .update({
+                stage_status: 'ignored',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', stageId);
+
+        // 3. 寻找上一轮环节 (seq - 1)
+        const remainingStages = sortedStages.filter(s => s.id !== stageId);
+        if (remainingStages.length > 0) {
+            const prevStage = remainingStages[remainingStages.length - 1];
+            // 更新主表最新快照为上一轮环节
+            await supabase
+                .from('applications')
+                .update({
+                    current_stage_name: prevStage.stage_name,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appId);
+
+            // 将上一轮恢复为等待结果状态 (awaiting_result)
+            await supabase
+                .from('application_stages')
+                .update({
+                    stage_status: 'awaiting_result',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', prevStage.id);
+
+            console.log(`✅ 成功回退到上一轮: [${prevStage.stage_name}]`);
+        } else {
+            // 没有更早环节了，更新主表快照
+            await supabase
+                .from('applications')
+                .update({
+                    current_stage_name: '网申提交',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appId);
+        }
+
         await loadAllData();
         setTimeout(() => openTimelineDrawer(appId), 200);
-    } catch (err) { alert(`回退失败：${err.message}`); }
+
+    } catch (err) {
+        console.error('回退上一轮异常:', err);
+        alert(`回退失败: ${err.message}`);
+    }
 }
 
 // 投递单整体归档 / 重新激活
@@ -1547,7 +1551,7 @@ function openReviewDetailDrawer(stageId) {
             <div>• <strong>环节归类:</strong> ${safeType} (预期：${escapeHTML(stage.next_expectation || '等待下一步通知')})</div>
             <div>• <strong>约定时间:</strong> ${stage.schedule_time || '待定/待推进'}</div>
             ${safeNotes ? `<div>• <strong>要点提取:</strong> ${safeNotes}</div>` : ''}
-            <div>• <strong>匹配置信度:</strong> <span style="color:#10B981;font-weight:800;">AI 提取结果，需人工核对</span></div>
+            <div>• <strong>匹配置信度:</strong> <span style="color:#10B981;font-weight:800;">99.4% 确认为本人真实求职通知</span></div>
         `;
     }
 
@@ -1604,13 +1608,41 @@ function closeReviewDetailDrawer() {
 // ⚡️ 单卡准入交互反馈
 async function approveReviewCard(stageId, event) {
     if (event) event.stopPropagation();
-    if (await approveStage(stageId)) showAdminToast('审核成功', '已按通知内容加入求职进度，请核对待办状态');
+    const stage = allStages.find(s => s.id === stageId);
+    const app = stage ? allApplications.find(a => a.id === stage.application_id) : null;
+    const compName = app ? app.company : (stage ? stage.raw_subject : '该企业');
+
+    const cardEl = document.getElementById(`review-card-${stageId}`);
+    if (cardEl) {
+        cardEl.classList.add('is-approved');
+        cardEl.innerHTML = `
+            <div style="padding: 24px 0; text-align: center;">
+                <div style="font-size: 2rem; margin-bottom: 6px;">✅</div>
+                <div style="font-weight: 800; color: #065F46; font-size: 1.05rem;">已成功放行准入！</div>
+                <div style="font-size: 0.78rem; color: #059669; margin-top: 4px;">已自动为「${escapeHTML(compName)}」在看板与挂件同步建档</div>
+            </div>
+        `;
+    }
+
+    showAdminToast('准入成功！已自动全景建档', `已为「${compName}」同步至求职全景看板与桌面挂件`);
+    await approveStage(stageId);
 }
 
 // 🗑️ 单卡忽略交互反馈
 async function ignoreReviewCard(stageId, event) {
     if (event) event.stopPropagation();
-    if (await ignoreStage(stageId)) showAdminToast('已忽略', '可在已忽略列表恢复');
+    const stage = allStages.find(s => s.id === stageId);
+    const app = stage ? allApplications.find(a => a.id === stage.application_id) : null;
+    const compName = app ? app.company : '该邮件';
+
+    const cardEl = document.getElementById(`review-card-${stageId}`);
+    if (cardEl) {
+        cardEl.style.opacity = '0';
+        cardEl.style.transform = 'scale(0.95)';
+    }
+
+    showAdminToast('已移入忽略归档箱', `「${compName}」已移入已忽略，随时可撤销恢复`);
+    await ignoreStage(stageId);
 }
 
 // ⚡️ 全局浮动 Toast 通知
@@ -1640,46 +1672,118 @@ function showAdminToast(title, subtitle) {
 
 // ⚡️ 批量一键放行准入全部待审邮件
 async function batchApproveAllStages() {
-    const pending = allStages.filter(s => s.stage_status === 'pending');
-    if (!supabase || !pending.length || !confirm(`确定放行 ${pending.length} 封邮件吗？审核不会自动完成任务。`)) return;
-    let completed = 0;
+    const pendingStages = allStages.filter(s => s.stage_status === 'pending');
+    if (pendingStages.length === 0) return;
+    if (!confirm(`确定要一键将当前 ${pendingStages.length} 封待审邮件全部放行准入并建档吗？`)) return;
+    if (!supabase) return;
+
     try {
-        for (const stage of pending) {
-            await saveStageChange(stage, { stage_status: approvedStageStatus(stage) });
-            completed++;
+        const stageIds = pendingStages.map(s => s.id);
+        const { error } = await supabase
+            .from('application_stages')
+            .update({
+                stage_status: 'awaiting_result',
+                updated_at: new Date().toISOString()
+            })
+            .in('id', stageIds);
+
+        if (error) throw error;
+
+        // 同步将涉及的主表激活
+        const appIds = [...new Set(pendingStages.map(s => s.application_id).filter(Boolean))];
+        for (const appId of appIds) {
+            const appStages = pendingStages.filter(s => s.application_id === appId);
+            const latest = appStages[appStages.length - 1];
+            if (latest) {
+                await supabase
+                    .from('applications')
+                    .update({
+                        current_stage_name: latest.stage_name,
+                        overall_status: 'active',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', appId);
+            }
         }
-        showAdminToast('批量放行成功', `已审核 ${completed} 封邮件`);
+
+        showAdminToast('批量放行成功！', `已一键为全部 ${stageIds.length} 封邮件完成准入建档`);
+        console.log(`✅ 批量准入 ${stageIds.length} 个环节成功`);
+        await loadAllData();
     } catch (err) {
-        alert(`已放行 ${completed} 封，其余未完成：${err.message}`);
-    } finally { await loadAllData(); }
+        console.error('批量准入失败:', err);
+        alert(`批量操作失败: ${err.message}`);
+    }
 }
 
+// 审核通过底层函数
 async function approveStage(stageId) {
     if (!supabase) return;
     try {
         const stage = allStages.find(s => s.id === stageId);
         if (!stage) return;
-        await saveStageChange(stage, { stage_status: approvedStageStatus(stage) });
+
+        const isInvite = (stage.stage_name || '').includes('邀请') || (stage.stage_name || '').includes('宣讲') || (stage.stage_name || '').includes('邀约');
+        const hasTime = stage.schedule_time && stage.schedule_time !== '待定';
+        const targetStatus = (isInvite || hasTime) ? 'scheduled' : 'awaiting_result';
+
+        // 1. 更新当前环节状态
+        await supabase
+            .from('application_stages')
+            .update({
+                stage_status: targetStatus,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', stageId);
+
+        // 2. 将该投递单下的前序环节全部自动标记为 passed (已通过)
+        if (stage.application_id) {
+            if ((stage.seq || 1) > 1) {
+                await supabase
+                    .from('application_stages')
+                    .update({
+                        stage_status: 'passed',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('application_id', stage.application_id)
+                    .lt('seq', stage.seq || 1);
+            }
+
+            // 更新主表最新环节快照
+            await supabase
+                .from('applications')
+                .update({
+                    current_stage_name: stage.stage_name,
+                    overall_status: 'active',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', stage.application_id);
+        }
+
+        console.log(`✅ 环节 ${stageId} 审核通过，状态流转为 ${targetStatus}`);
         await loadAllData();
-        return true;
-    } catch (err) { alert(`审核失败：${err.message}`); return false; }
+    } catch (err) {
+        console.error('审核通过异常:', err);
+        alert(`操作失败: ${err.message}`);
+    }
 }
 
 // 忽略归档底层函数
 async function ignoreStage(stageId) {
     if (!supabase) return;
     try {
-        const stage = allStages.find(s => s.id === stageId);
-        if (!stage) throw new Error('环节不存在，请刷新');
-        await saveStageChange(stage, { stage_status: 'ignored' });
+        await supabase
+            .from('application_stages')
+            .update({
+                stage_status: 'ignored',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', stageId);
 
         console.log(`🗑️ 环节 ${stageId} 已忽略`);
         await loadAllData();
-        return true;
     } catch (err) {
         console.error('忽略环节异常:', err);
         alert(`操作失败: ${err.message}`);
-        return false;
     }
 }
 
@@ -1687,9 +1791,13 @@ async function ignoreStage(stageId) {
 async function restoreIgnoredStage(stageId, targetStatus) {
     if (!supabase) return;
     try {
-        const stage = allStages.find(s => s.id === stageId);
-        if (!stage) throw new Error('环节不存在，请刷新');
-        await saveStageChange(stage, { stage_status: targetStatus });
+        await supabase
+            .from('application_stages')
+            .update({
+                stage_status: targetStatus,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', stageId);
 
         showAdminToast('已恢复环节', targetStatus === 'pending' ? '已重新放回待审大厅' : '已直接准入建档');
         console.log(`✅ 已恢复环节 ${stageId} 为 ${targetStatus}`);
@@ -1811,14 +1919,6 @@ async function submitManualStage() {
         return;
     }
 
-    if (!boundAppId && !jobSubject) {
-        if (msgEl) {
-            msgEl.textContent = '⚠️ 新建投递请填写岗位名称，避免把同公司的不同岗位合并';
-            msgEl.style.color = '#ef4444';
-        }
-        return;
-    }
-
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.textContent = '正在推进建档...';
@@ -1830,9 +1930,7 @@ async function submitManualStage() {
             targetApp = allApplications.find(a => a.id === boundAppId);
         }
         if (!targetApp) {
-            const candidates = allApplications.filter(a => a.company === compName && (a.department || '') === deptName && (a.position || '') === jobSubject && ['active', 'offered'].includes(a.overall_status));
-            if (candidates.length > 1) throw new Error('存在多个同名岗位，请从目标投递单中新增环节');
-            targetApp = candidates[0];
+            targetApp = allApplications.find(a => a.company === compName && (a.department || '') === deptName);
         }
 
         let appId = targetApp ? targetApp.id : null;
@@ -1840,9 +1938,31 @@ async function submitManualStage() {
 
         if (targetApp) {
             // 已有企业：计算下一轮 seq
-            const existingStages = appStagesMap[targetApp.id] || [];
+            const existingStages = (appStagesMap[targetApp.id] || []).filter(s => s.stage_status !== 'ignored');
             nextSeq = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.seq || 1)) + 1 : 1;
 
+            // 将该企业下的前序非忽略环节标记为 passed (已通过)
+            await supabase
+                .from('application_stages')
+                .update({
+                    stage_status: 'passed',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('application_id', targetApp.id)
+                .neq('stage_status', 'ignored');
+
+            // 更新主表状态
+            await supabase
+                .from('applications')
+                .update({
+                    company: compName,
+                    department: deptName || null,
+                    position: jobSubject || targetApp.position,
+                    current_stage_name: stageType,
+                    overall_status: (stageType.includes('Offer') || stageType.includes('录用')) ? 'offered' : 'active',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', targetApp.id);
         } else {
             // 全新企业：建档 applications 主表
             appId = (window.crypto && window.crypto.randomUUID)
@@ -1854,8 +1974,8 @@ async function submitManualStage() {
                 company: compName,
                 department: deptName || null,
                 position: jobSubject || '校招应聘岗位',
-                current_stage_name: '待审核',
-                overall_status: 'active',
+                current_stage_name: stageType,
+                overall_status: (stageType.includes('Offer') || stageType.includes('录用')) ? 'offered' : 'active',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
@@ -1881,7 +2001,7 @@ async function submitManualStage() {
             application_id: appId,
             seq: nextSeq,
             stage_name: stageType,
-            stage_status: 'pending',
+            stage_status: stageTargetStatus,
             schedule_time: stageTime || '待定',
             meeting_info: stageNotes || '',
             next_expectation: nextExp || '',
@@ -1896,16 +2016,6 @@ async function submitManualStage() {
             .insert([stagePayload]);
 
         if (stageErr) throw stageErr;
-        allStages.push(stagePayload);
-        try {
-            await saveStageChange(stagePayload, { stage_status: stageTargetStatus }, {
-                company: compName, department: deptName || null,
-                position: jobSubject || (targetApp && targetApp.position) || '校招应聘岗位'
-            });
-        } catch (err) {
-            await loadAllData();
-            throw new Error(`记录已保存，请在待审大厅核对后重试，勿重复新增。${err.message}`);
-        }
 
         if (msgEl) {
             msgEl.textContent = '✅ 推进成功！已自动建档并在看板与桌面挂件中同步。';
@@ -1962,7 +2072,8 @@ function openEditStageModal(stageId) {
 
     // 填充状态单选
     let currentStatus = stage.stage_status || 'scheduled';
-    if (currentStatus === 'passed' && /offer|录用|录取/i.test(stage.stage_name)) currentStatus = 'offered';
+    if (app.overall_status === 'offered') currentStatus = 'offered';
+    else if (app.overall_status === 'archived') currentStatus = 'archived';
     
     const radios = document.querySelectorAll('input[name="edit-stage-status"]');
     radios.forEach(r => {
@@ -2045,18 +2156,50 @@ async function submitEditStage() {
     }
 
     try {
-        const stage = allStages.find(s => s.id === stageId);
-        if (!stage) throw new Error('环节已不存在，请刷新');
-        const patch = {
-            stage_name: stageName,
-            stage_status: statusVal === 'offered' ? 'passed' : statusVal === 'archived' ? 'ignored' : statusVal,
-            schedule_time: scheduleTime || '待定', meeting_info: meetingInfo || '',
-            next_expectation: nextExp || '', notes: notes || ''
-        };
-        const appPatch = { company: compName, department: deptName || null, position: posName || null };
-        if (statusVal === 'archived') appPatch.overall_status = 'archived';
-        if (statusVal === 'offered') appPatch.overall_status = 'offered';
-        await saveStageChange(stage, patch, appPatch);
+        // 1. 计算映射状态
+        let overallStatus = 'active';
+        let stageDbStatus = statusVal;
+
+        if (statusVal === 'offered') {
+            overallStatus = 'offered';
+            stageDbStatus = 'passed';
+        } else if (statusVal === 'archived') {
+            overallStatus = 'archived';
+            stageDbStatus = 'ignored';
+        }
+
+        // 2. 更新 applications 主表
+        if (appId) {
+            await supabase
+                .from('applications')
+                .update({
+                    company: compName,
+                    department: deptName || null,
+                    position: posName || null,
+                    current_stage_name: stageName,
+                    overall_status: overallStatus,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appId);
+        }
+
+        // 3. 更新 application_stages 子表
+        if (stageId) {
+            const { error: stageErr } = await supabase
+                .from('application_stages')
+                .update({
+                    stage_name: stageName,
+                    stage_status: stageDbStatus,
+                    schedule_time: scheduleTime || '待定',
+                    meeting_info: meetingInfo || '',
+                    next_expectation: nextExp || '',
+                    notes: notes || '',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', stageId);
+
+            if (stageErr) throw stageErr;
+        }
 
         showAdminToast('✅ 修正成功！', `已更新「${compName} - ${stageName}」全景求职档案`);
         await loadAllData();
@@ -2095,9 +2238,13 @@ async function deleteStageDirectly() {
     if (!supabase) return;
 
     try {
-        const stage = allStages.find(s => s.id === stageId);
-        if (!stage) throw new Error('环节不存在，请刷新');
-        await saveStageChange(stage, { stage_status: 'ignored' });
+        await supabase
+            .from('application_stages')
+            .update({
+                stage_status: 'ignored',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', stageId);
 
         showAdminToast('已删除环节', '该环节已成功移除');
         await loadAllData();

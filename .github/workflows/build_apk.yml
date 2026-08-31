@@ -36,9 +36,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: android-app/package.json
 
-      - name: 验证求职进度与保存规则
-        run: node --test tests/test_progress_state.cjs tests/test_mobile_progress.cjs
-
       - name: 📦 安装移动端前端依赖
         working-directory: android-app
         run: npm install

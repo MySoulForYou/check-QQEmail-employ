@@ -12,7 +12,7 @@ def self_test():
     from server import app
 
     with app.test_client() as client:
-        for path in ('/', '/admin/progress.js', '/admin/app.js', '/admin/style.css', '/admin/supabase.js',
+        for path in ('/', '/admin/app.js', '/admin/style.css', '/admin/supabase.js',
                      '/widget', '/widget/drag.js', '/widget/app.js', '/widget/style.css', '/widget/supabase.js'):
             response = client.get(path)
             if response.status_code != 200 or not response.data:

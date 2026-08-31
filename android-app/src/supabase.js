@@ -1,6 +1,3 @@
-import '../../client/admin/progress.js';
-const { approvedStageStatus, confirmedSnapshot } = globalThis.OfferPilotProgress;
-
 class SupabaseMobileService {
   constructor() {
     this.url = '';
@@ -114,89 +111,161 @@ class SupabaseMobileService {
     return { applications, stages };
   }
 
-  async writeRecord(table, query, data, method = 'PATCH') {
-    if (!this.url || !this.key) throw new Error('未配置 Supabase');
-    const res = await fetch(`${this.url}/rest/v1/${table}${query ? '?' + query : ''}`, {
-      method, headers: {apikey: this.key, Authorization: `Bearer ${this.key}`,
-        'Content-Type': 'application/json', Prefer: 'return=representation'},
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(`保存 ${table} 失败 (${res.status})`);
-    const rows = await res.json();
-    if (!rows.length) throw new Error('记录已变化或没有写入权限，请刷新');
-    return rows;
-  }
-
   async updateStageStatus(stageId, newStatus) {
-    return this.updateStageAndApplication(stageId, null, {stage_status: newStatus}, {});
+    if (!this.url || !this.key) throw new Error('未配置 Supabase');
+    const res = await fetch(`${this.url}/rest/v1/application_stages?id=eq.${stageId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': this.key,
+        'Authorization': `Bearer ${this.key}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        stage_status: newStatus,
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (!res.ok) throw new Error('更新状态失败');
+    return await res.json();
   }
 
-  async approveStage(stageId) {
-    const {stages} = await this.fetchApplicationsWithStages();
-    const stage = stages.find(s => s.id === stageId);
-    if (!stage || stage.stage_status !== 'pending') throw new Error('待审记录已变化，请刷新');
-    return this.updateStageStatus(stageId, approvedStageStatus(stage));
-  }
+  async updateStageAndApplication(stageId, appId, stageData, appData) {
+    if (!this.url || !this.key) throw new Error('未配置 Supabase');
+    const headers = {
+      'apikey': this.key,
+      'Authorization': `Bearer ${this.key}`,
+      'Content-Type': 'application/json'
+    };
 
-  async updateStageAndApplication(stageId, appId, stageData, appData = {}) {
-    const {stages, applications = []} = await this.fetchApplicationsWithStages();
-    const stage = stages.find(s => s.id === stageId);
-    if (!stage) throw new Error('环节不存在，请刷新');
-    appId = stage.application_id;
-    const stamp = new Date().toISOString();
-    const change = {...stageData, updated_at: stamp};
-    const query = `id=eq.${encodeURIComponent(stageId)}`;
-    await this.writeRecord('application_stages', query + (stage.updated_at ? `&updated_at=eq.${encodeURIComponent(stage.updated_at)}` : ''), change);
-    try {
-      const snapshot = confirmedSnapshot(stages.filter(s => s.application_id === appId)
-        .map(s => s.id === stageId ? {...s, ...change} : s));
-      // 快照只由最新已确认环节决定，编辑历史环节不能覆盖当前进度。
-      const {current_stage_name, overall_status, ...details} = appData;
-      const app = applications.find(a => a.id === appId);
-      if (app && app.overall_status === 'archived') snapshot.overall_status = 'archived';
-      const appQuery = `id=eq.${encodeURIComponent(appId)}` + (app && app.updated_at ? `&updated_at=eq.${encodeURIComponent(app.updated_at)}` : '');
-      await this.writeRecord('applications', appQuery,
-        {...details, ...snapshot, updated_at: stamp});
-    } catch (err) {
-      const before = Object.fromEntries(Object.keys(change).map(k => [k, stage[k] ?? null]));
-      try {
-        await this.writeRecord('application_stages', `${query}&updated_at=eq.${encodeURIComponent(stamp)}`, before);
-      } catch (undo) { throw new Error(`保存失败且恢复失败，请核对云端记录：${err.message}；${undo.message}`); }
-      throw err;
+    // 1. 更新主表
+    if (appId && appData) {
+      await fetch(`${this.url}/rest/v1/applications?id=eq.${appId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          ...appData,
+          updated_at: new Date().toISOString()
+        })
+      });
+    }
+
+    // 2. 更新子表
+    if (stageId && stageData) {
+      await fetch(`${this.url}/rest/v1/application_stages?id=eq.${stageId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          ...stageData,
+          updated_at: new Date().toISOString()
+        })
+      });
     }
   }
 
   async createApplicationWithStage(appData, stageData) {
-    if (!appData.position || !appData.position.trim()) throw new Error('请填写岗位名称，避免合并不同岗位');
-    const {applications, stages} = await this.fetchApplicationsWithStages();
-    const existing = applications.filter(a => a.company === appData.company &&
-      (a.department || '') === (appData.department || '') &&
-      (a.position || '') === (appData.position || '') && ['active', 'offered'].includes(a.overall_status));
-    if (existing.length > 1) throw new Error('存在多个同名岗位，请先核对投递记录');
-    let app = existing[0];
-    if (!app) {
-      [app] = await this.writeRecord('applications', '', {...appData,
-        current_stage_name: '待审核', overall_status: 'active'}, 'POST');
+    if (!this.url || !this.key) throw new Error('未配置 Supabase');
+    const headers = {
+      'apikey': this.key,
+      'Authorization': `Bearer ${this.key}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
+
+    // 检查是否存在同名公司
+    const checkRes = await fetch(`${this.url}/rest/v1/applications?company=eq.${encodeURIComponent(appData.company)}&limit=1`, { headers });
+    let appId = null;
+    if (checkRes.ok) {
+      const existing = await checkRes.json();
+      if (existing && existing.length > 0) {
+        appId = existing[0].id;
+        // 更新岗位与最新环节
+        await fetch(`${this.url}/rest/v1/applications?id=eq.${appId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            current_stage_name: stageData.stage_name,
+            updated_at: new Date().toISOString()
+          })
+        });
+      }
     }
-    const seq = Math.max(0, ...stages.filter(s => s.application_id === app.id).map(s => s.seq || 1)) + 1;
-    const [stage] = await this.writeRecord('application_stages', '', {...stageData,
-      application_id: app.id, seq, stage_status: 'pending'}, 'POST');
-    try {
-      await this.updateStageStatus(stage.id, stageData.stage_status || 'scheduled');
-    } catch (err) { throw new Error(`已保存待审记录，请核对后重试，勿重复新增：${err.message}`); }
+
+    if (!appId) {
+      const createRes = await fetch(`${this.url}/rest/v1/applications`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          company: appData.company,
+          department: appData.department || '',
+          position: appData.position || '通用岗位',
+          current_stage_name: stageData.stage_name,
+          overall_status: 'active'
+        })
+      });
+      if (!createRes.ok) throw new Error('创建主表记录失败');
+      const createdApp = await createRes.json();
+      appId = createdApp[0].id;
+    }
+
+    // 查询当前已有 stage 个数作为 seq
+    const stagesRes = await fetch(`${this.url}/rest/v1/application_stages?application_id=eq.${appId}&select=seq&order=seq.desc&limit=1`, { headers });
+    let maxSeq = 0;
+    if (stagesRes.ok) {
+      const s = await stagesRes.json();
+      if (s && s.length > 0) maxSeq = s[0].seq || 0;
+    }
+
+    // 插入环节
+    const insertStageRes = await fetch(`${this.url}/rest/v1/application_stages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        application_id: appId,
+        seq: maxSeq + 1,
+        stage_name: stageData.stage_name,
+        stage_status: stageData.stage_status || 'scheduled',
+        schedule_time: stageData.schedule_time || '待定',
+        meeting_info: stageData.meeting_info || '',
+        next_expectation: stageData.next_expectation || '',
+        notes: stageData.notes || ''
+      })
+    });
+
+    if (!insertStageRes.ok) throw new Error('插入环节记录失败');
     return true;
   }
 
   async deleteStage(stageId) {
-    // 保留可恢复历史，与网页端一致。
-    return this.updateStageStatus(stageId, 'ignored');
+    if (!this.url || !this.key) throw new Error('未配置 Supabase');
+    const res = await fetch(`${this.url}/rest/v1/application_stages?id=eq.${stageId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': this.key,
+        'Authorization': `Bearer ${this.key}`
+      }
+    });
+    if (!res.ok) throw new Error('删除环节失败');
+    return true;
   }
 
   async batchApproveStages(stageIds) {
-    let completed = 0;
-    try {
-      for (const id of stageIds || []) { await this.approveStage(id); completed++; }
-    } catch (err) { throw new Error(`已放行 ${completed} 封，其余未完成：${err.message}`); }
+    if (!stageIds || stageIds.length === 0) return;
+    const headers = {
+      'apikey': this.key,
+      'Authorization': `Bearer ${this.key}`,
+      'Content-Type': 'application/json'
+    };
+    for (const id of stageIds) {
+      await fetch(`${this.url}/rest/v1/application_stages?id=eq.${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          stage_status: 'scheduled',
+          updated_at: new Date().toISOString()
+        })
+      });
+    }
   }
 
   // ==================== WebSocket Realtime 实时双向推流 ====================

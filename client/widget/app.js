@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const enrichedPending = (pendingStages || []).map(s => ({
                 ...s,
                 app: appsMap[s.application_id] || { company: '未知企业', position: '' }
-            })).filter(s => !['archived', 'failed'].includes(s.app.overall_status));
+            })).filter(s => s.app.overall_status !== 'archived');
 
             const enrichedCompleted = (completedStages || []).map(s => ({
                 ...s,
