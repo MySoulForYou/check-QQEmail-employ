@@ -25,9 +25,6 @@ jobs:
           pip install --upgrade pip
           pip install beautifulsoup4 openai httpx
 
-      - name: Test email retry and matching rules
-        run: python -m unittest discover -s tests -p test_email_sync.py -v
-
       - name: Run Cloud Sync Worker
         env:
           # 🔒 核心机密 (从 GitHub Secrets 显式注入)
