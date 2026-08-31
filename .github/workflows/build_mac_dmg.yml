@@ -42,7 +42,8 @@ jobs:
       - name: 回归测试（配置持久化与发布模式）
         run: |
           python -m unittest discover -s tests -p 'test_mac*.py' -v
-          node --test tests/test_widget_drag.cjs
+          node --test tests/test_*.cjs
+          python -m unittest discover -s tests -p test_email_sync.py -v
 
       - name: 选择 Release 签名模式（无凭据可发布未公证包）
         id: signing

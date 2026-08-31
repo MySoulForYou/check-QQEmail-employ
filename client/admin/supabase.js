@@ -108,7 +108,15 @@
         }
 
         then(resolve, reject) {
-            return this.execute().then(resolve, reject);
+            return this.execute().then(result => {
+                if (result.error && this.method !== 'GET') {
+                    throw new Error(result.error.message || '数据库写入失败');
+                }
+                if (this.method !== 'GET' && Array.isArray(result.data) && result.data.length === 0) {
+                    throw new Error('记录已变化或没有写入权限，请刷新后重试');
+                }
+                return result;
+            }).then(resolve, reject);
         }
     }
 
