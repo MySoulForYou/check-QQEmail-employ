@@ -57,7 +57,7 @@ function getCompanyInitial(companyName) {
 // ==========================================================================
 // 2. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
 // ==========================================================================
-function getStageStatusMeta(stage, app) {
+function getStageStatusMetaRaw(stage, app) {
     if (!stage) {
         return {
             icon: '📌',
@@ -327,6 +327,25 @@ function getStageStatusMeta(stage, app) {
     };
 }
 
+// 保留业务文案与状态语义，但统一移除装饰性 emoji，避免界面显得零碎。
+function stripDecorativeEmoji(value) {
+    return String(value || '')
+        .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+        .replace(/\uFE0F/gu, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+function getStageStatusMeta(stage, app) {
+    const meta = getStageStatusMetaRaw(stage, app);
+    return {
+        ...meta,
+        icon: '•',
+        nodeIcon: meta.category === 'archived' ? '−' : '•',
+        badgeText: stripDecorativeEmoji(meta.badgeText)
+    };
+}
+
 // ==========================================================================
 // 3. 求职推进管道链路生成器 (动态 Progressive Pipeline：按 seq 升序展示)
 // ==========================================================================
@@ -355,16 +374,16 @@ function generatePipelineHTML(stages) {
         if (isLatest) {
             if (s.stage_status === 'scheduled') {
                 stepClass = 'active';
-                stepIcon = '⏳';
+                stepIcon = '•';
             } else if (s.stage_status === 'awaiting_result') {
                 stepClass = 'active';
-                stepIcon = '🎯';
+                stepIcon = '•';
             } else if (meta.category === 'offer') {
                 stepClass = 'offer';
-                stepIcon = '🎉';
+                stepIcon = '✓';
             } else if (meta.category === 'archived') {
                 stepClass = 'archived';
-                stepIcon = '📦';
+                stepIcon = '−';
             } else {
                 stepClass = 'done';
                 stepIcon = '✓';
@@ -512,11 +531,11 @@ function setupEventListeners() {
         btnWakeWidget.addEventListener('click', async () => {
             try {
                 btnWakeWidget.disabled = true;
-                btnWakeWidget.innerHTML = '<span class="tool-icon">⏳</span> 正在唤醒...';
+                btnWakeWidget.innerHTML = '<span class="tool-icon">…</span> 正在唤醒...';
                 const resp = await fetch('/api/show_widget', { method: 'POST' });
                 const res = await resp.json();
                 if (res.success) {
-                    btnWakeWidget.innerHTML = '<span class="tool-icon">✅</span> 已唤醒';
+                    btnWakeWidget.innerHTML = '<span class="tool-icon">✓</span> 已唤醒';
                 } else {
                     alert('唤醒挂件提示: ' + (res.message || '挂件可能已在前台'));
                 }
@@ -629,7 +648,7 @@ async function saveSettings() {
 
     if (!url || !key) {
         if (msgEl) {
-            msgEl.textContent = '⚠️ 请完整填写 Supabase URL 和 Key';
+            msgEl.textContent = '请完整填写 Supabase URL 和 Key';
             msgEl.style.color = '#ef4444';
         }
         return;
@@ -650,7 +669,7 @@ async function saveSettings() {
 
         if (res.success) {
             if (msgEl) {
-                msgEl.textContent = '✅ 保存成功！正在重新连接云端...';
+                msgEl.textContent = '保存成功，正在重新连接云端...';
                 msgEl.style.color = '#10b981';
             }
 
@@ -675,12 +694,12 @@ async function saveSettings() {
         }
     } catch (err) {
         if (msgEl) {
-            msgEl.textContent = `❌ 保存失败: ${err.message}`;
+            msgEl.textContent = `保存失败：${err.message}`;
             msgEl.style.color = '#ef4444';
         }
     } finally {
         if (btnSave) {
-            btnSave.textContent = '⚡️ 保存配置并连接';
+            btnSave.textContent = '保存配置并连接';
             btnSave.disabled = false;
         }
     }
@@ -950,7 +969,7 @@ function renderDashboard() {
     });
 
     if (filteredApps.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">🔍 没有匹配到符合当前筛选条件的企业或岗位</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">没有匹配到符合当前筛选条件的企业或岗位</td></tr>';
         return;
     }
 
@@ -1007,7 +1026,7 @@ function renderDashboard() {
                 </td>
                 <td style="text-align: right;">
                     <button class="btn-row-action" onclick="event.stopPropagation(); openTimelineDrawer('${app.id}')">
-                        全景时间线 ➔
+                        查看档案 →
                     </button>
                 </td>
             </tr>
@@ -1052,7 +1071,7 @@ function openTimelineDrawer(appId) {
     if (reverseStages.length === 0) {
         timelineContent.innerHTML = `
             <div style="text-align:center;padding:40px 16px;color:#94a3b8;">
-                暂无推进环节，点击上方「➕ 手动推进新环节」开始建档！
+                暂无推进环节，点击上方「推进新环节」开始建档。
             </div>
         `;
     } else {
@@ -1118,13 +1137,13 @@ function openTimelineDrawer(appId) {
             return `
                 <div class="timeline-item ${isLatest ? 'is-latest' : ''}">
                     <div class="timeline-node">
-                        ${isLatest ? '📌' : meta.nodeIcon}
+                        ${isLatest ? '•' : meta.nodeIcon}
                     </div>
                     <div class="timeline-card">
                         <div class="timeline-header">
                             <div class="timeline-stage-name">
                                 ${meta.icon} 第${s.seq || 1}轮 · ${safeType}
-                                ${isLatest ? '<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">📌 最新进展</span>' : ''}
+                                ${isLatest ? '<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">最新进展</span>' : ''}
                             </div>
                             <span class="timeline-timestamp">${dateStr}</span>
                         </div>
@@ -1139,14 +1158,14 @@ function openTimelineDrawer(appId) {
 
                         ${safeMeeting ? `
                             <div class="timeline-notes-box" style="margin-top:8px;">
-                                <span>🔑 <strong>会议/凭据:</strong> ${safeMeeting}</span>
+                                <span><strong>会议/凭据:</strong> ${safeMeeting}</span>
                                 <button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:0.75rem;" onclick="navigator.clipboard.writeText('${safeMeeting}');alert('已复制会议凭据到剪贴板！');">复制</button>
                             </div>
                         ` : ''}
 
                         ${safeNotes ? `
                             <div class="timeline-notes-box" style="margin-top:6px;background:#F8FAFC;">
-                                <span>📌 <strong>备注:</strong> ${safeNotes}</span>
+                                <span><strong>备注:</strong> ${safeNotes}</span>
                             </div>
                         ` : ''}
                     </div>
@@ -1315,7 +1334,7 @@ function renderReviews(stages) {
 
     if (batchBtn) {
         batchBtn.style.display = totalCount > 1 ? 'inline-flex' : 'none';
-        batchBtn.innerHTML = `<span>⚡️</span> 一键全选准入 (${totalCount})`;
+        batchBtn.textContent = `一键全选准入 (${totalCount})`;
     }
 
     if (!container) return;
@@ -1839,7 +1858,7 @@ function openManualStageModal(targetAppId) {
         if (compInput) compInput.value = '';
         if (deptInput) deptInput.value = '';
         if (jobInput) jobInput.value = '';
-        if (titleEl) titleEl.textContent = '➕ 手动添加投递企业与环节';
+        if (titleEl) titleEl.textContent = '手动添加投递企业与环节';
     }
 
     if (typeInput) typeInput.value = '';
@@ -2042,7 +2061,7 @@ async function submitManualStage() {
     } finally {
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.textContent = '⚡️ 立即保存并建档';
+            submitBtn.textContent = '立即保存并建档';
         }
     }
 }
@@ -2223,7 +2242,7 @@ async function submitEditStage() {
     } finally {
         if (saveBtn) {
             saveBtn.disabled = false;
-            saveBtn.textContent = '💾 保存所有修改';
+            saveBtn.textContent = '保存所有修改';
         }
     }
 }
@@ -2261,6 +2280,4 @@ async function deleteStageDirectly() {
         alert(`删除失败: ${err.message}`);
     }
 }
-
-
 

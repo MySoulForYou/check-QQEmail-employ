@@ -22,7 +22,7 @@
             <!-- 全局高频核心动作按钮 -->
             <div class="sidebar-action-wrap">
                 <button class="btn-sidebar-create" onclick="openManualStageModal('')" title="手动录入微信、电话邀约或新公司">
-                    <span class="btn-icon">➕</span>
+                    <span class="btn-icon" aria-hidden="true">＋</span>
                     <span>手动建档 / 推进</span>
                 </button>
             </div>
@@ -32,12 +32,12 @@
                 <div class="sidebar-nav-section-title">核心大厅</div>
                 
                 <button class="sidebar-nav-item active" data-target="dashboard-view" id="nav-item-dashboard">
-                    <span class="nav-item-icon">📊</span>
+                    <span class="nav-item-icon" aria-hidden="true">▦</span>
                     <span class="nav-item-label">求职全景看板</span>
                 </button>
 
                 <button class="sidebar-nav-item" data-target="review-view" id="nav-item-review">
-                    <span class="nav-item-icon">📬</span>
+                    <span class="nav-item-icon" aria-hidden="true">◇</span>
                     <span class="nav-item-label">邮件待审准入</span>
                     <span class="nav-badge-count" id="review-badge">0</span>
                 </button>
@@ -46,7 +46,7 @@
             <!-- 底部系统工具、设置与 Realtime 遥测 -->
             <div class="sidebar-footer">
                 <button class="sidebar-tool-btn" id="btn-wake-widget" title="唤醒本地桌面透明挂件">
-                    <span class="tool-icon">💻</span>
+                    <span class="tool-icon" aria-hidden="true">▣</span>
                     <span>唤醒桌面透明挂件</span>
                 </button>
 
@@ -56,7 +56,7 @@
                         <span class="status-label" id="admin-status-text">云端 Realtime 已连接</span>
                     </div>
                     <button class="btn-settings-gear" id="admin-settings-nav" title="配置 Supabase 云数据库">
-                        ⚙️
+                        设置
                     </button>
                 </div>
             </div>
@@ -75,12 +75,12 @@
 
                     <div class="topbar-actions">
                         <div class="search-input-wrap">
-                            <span class="search-icon">🔍</span>
+                            <span class="search-icon" aria-hidden="true">⌕</span>
                             <input type="text" id="company-search-input" placeholder="搜索企业、部门、岗位或环节..." autocomplete="off">
                             <button id="search-clear-btn" class="search-clear-btn" style="display:none;">&times;</button>
                         </div>
                         <button class="btn-action-pill" id="btn-global-refresh" title="即时刷新云端数据">
-                            <span class="refresh-spin" id="refresh-spin">🔄</span>
+                            <span class="refresh-spin" id="refresh-spin" aria-hidden="true">↻</span>
                             <span>刷新</span>
                         </button>
                     </div>
@@ -91,7 +91,7 @@
                     <!-- Bento 1: 全部已建档企业 -->
                     <div class="bento-card active" data-bento="all" id="kpi-card-all">
                         <div class="bento-card-header">
-                            <span class="bento-label">🏢 全部已建档企业</span>
+                            <span class="bento-label">全部已建档企业</span>
                             <span class="bento-status-pill pill-green" id="kpi-tag-all">当前查看</span>
                         </div>
                         <div class="bento-card-body">
@@ -103,7 +103,7 @@
                     <!-- Bento 2: 待测评/投递/笔试/面试 -->
                     <div class="bento-card" data-bento="todo" id="kpi-card-todo">
                         <div class="bento-card-header">
-                            <span class="bento-label">⏳ 待测评/投递/笔试/面试</span>
+                            <span class="bento-label">待测评/投递/笔试/面试</span>
                             <span class="bento-status-pill pill-indigo" id="kpi-tag-todo">点击过滤 ➔</span>
                         </div>
                         <div class="bento-card-body">
@@ -115,7 +115,7 @@
                     <!-- Bento 3: 等待结果中 -->
                     <div class="bento-card" data-bento="waiting" id="kpi-card-waiting">
                         <div class="bento-card-header">
-                            <span class="bento-label">🎯 等待结果中</span>
+                            <span class="bento-label">等待结果中</span>
                             <span class="bento-status-pill pill-amber" id="kpi-tag-waiting">点击过滤 ➔</span>
                         </div>
                         <div class="bento-card-body">
@@ -127,7 +127,7 @@
                     <!-- Bento 4: 已录用 -->
                     <div class="bento-card" data-bento="offer" id="kpi-card-offer">
                         <div class="bento-card-header">
-                            <span class="bento-label">🏆 已录用</span>
+                            <span class="bento-label">已录用</span>
                             <span class="bento-status-pill pill-emerald" id="kpi-tag-offer">点击过滤 ➔</span>
                         </div>
                         <div class="bento-card-body">
@@ -141,11 +141,11 @@
                 <div class="sub-filter-bar">
                     <div class="filter-chips">
                         <button class="filter-chip active" data-progress="all">全部</button>
-                        <button class="filter-chip" data-progress="assessment">📊 测评</button>
-                        <button class="filter-chip" data-progress="written_test">📝 笔试</button>
-                        <button class="filter-chip" data-progress="interview">⏳ 面试</button>
-                        <button class="filter-chip" data-progress="offer">🎉 Offer</button>
-                        <button class="filter-chip" data-progress="terminated">❌ 终止</button>
+                        <button class="filter-chip" data-progress="assessment">测评</button>
+                        <button class="filter-chip" data-progress="written_test">笔试</button>
+                        <button class="filter-chip" data-progress="interview">面试</button>
+                        <button class="filter-chip" data-progress="offer">Offer</button>
+                        <button class="filter-chip" data-progress="terminated">终止</button>
                     </div>
                 </div>
 
@@ -172,7 +172,7 @@
             <section id="review-view" class="view-panel">
                 <header class="main-topbar">
                     <div class="topbar-title-group">
-                        <h1 class="main-page-title">📬 邮件待审与准入门禁</h1>
+                        <h1 class="main-page-title">邮件待审与准入门禁</h1>
                         <p class="main-page-desc">由云端 DeepSeek AI 实时抓取解析 · 请确认是否为本人真实求职通知并放行建档</p>
                     </div>
 
@@ -180,17 +180,17 @@
                         <!-- 内置子页签：待审核 & 已忽略归档 -->
                         <div class="segmented-pill-group">
                             <button class="segmented-pill active" id="btn-subtab-pending" onclick="switchReviewSubtab('pending')">
-                                <span>📬 待审核</span>
+                                <span>待审核</span>
                                 <span class="pill-counter" id="review-badge-sub">0</span>
                             </button>
                             <button class="segmented-pill" id="btn-subtab-ignored" onclick="switchReviewSubtab('ignored')">
-                                <span>📦 已忽略</span>
+                                <span>已忽略</span>
                                 <span class="pill-counter counter-muted" id="ignored-badge">0</span>
                             </button>
                         </div>
 
                         <button class="btn-batch-approve" id="btn-batch-approve" style="display:none;" onclick="batchApproveAllStages()" title="批量将当前全部待审邮件放行建档">
-                            <span>⚡️ 一键全选准入</span>
+                            <span>一键全选准入</span>
                         </button>
                     </div>
                 </header>
@@ -230,9 +230,9 @@
 
                 <div class="drawer-body">
                     <div class="drawer-section-title">
-                        <span>🗓️ 全周期求职时间轴 (时序倒序流)</span>
+                        <span>全周期求职时间轴（最新优先）</span>
                         <button class="btn-drawer-advance" onclick="openManualStageModalForCurrentCompany()">
-                            <span>➕ 推进新环节</span>
+                            <span>＋ 推进新环节</span>
                         </button>
                     </div>
 
@@ -248,7 +248,7 @@
         <div class="modal-backdrop" id="manual-stage-modal" style="display:none;">
             <div class="modal-box">
                 <div class="modal-header">
-                    <div class="modal-header-icon">✨</div>
+                    <div class="modal-header-icon">＋</div>
                     <div>
                         <h3 id="manual-modal-title" class="modal-title">手动建档 / 推进求职环节</h3>
                         <p class="modal-desc">支持微信、电话、短信通知或自主投递情况下的手动建档与环节推进</p>
@@ -276,14 +276,14 @@
                     <div class="form-item">
                         <label>推进环节类型 <span class="text-danger">*</span> <span class="form-hint">(点击快捷预设)</span></label>
                         <div class="stage-preset-chips">
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('网申提交')">📬 网申提交</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('在线笔试')">📝 在线笔试</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('综合测评')">📊 综合测评</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('技术一面')">⏳ 技术一面</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('业务二面')">🎯 业务二面</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('总监终面')">🏆 总监终面</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('HR面')">👥 HR面</button>
-                            <button type="button" class="stage-preset-btn preset-gold" onclick="selectStagePreset('录用意向/Offer')">🎉 录用Offer</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('网申提交')">网申提交</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('在线笔试')">在线笔试</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('综合测评')">综合测评</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('技术一面')">技术一面</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('业务二面')">业务二面</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('总监终面')">总监终面</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectStagePreset('HR面')">HR 面</button>
+                            <button type="button" class="stage-preset-btn preset-gold" onclick="selectStagePreset('录用意向/Offer')">录用 Offer</button>
                         </div>
                         <input type="text" id="manual-stage-type" placeholder="可点击上方预设药丸或直接输入，如：交叉三面" spellcheck="false" />
                     </div>
@@ -309,11 +309,11 @@
                         <div class="radio-options-row">
                             <label class="radio-label">
                                 <input type="radio" name="manual-status" value="scheduled" checked>
-                                <span>⏳ <strong>收到通知待参加 / 待作答</strong> (加入待办日程 & 推送桌面挂件)</span>
+                                <span><strong>收到通知待参加 / 待作答</strong>（加入待办日程并推送桌面挂件）</span>
                             </label>
                             <label class="radio-label">
                                 <input type="radio" name="manual-status" value="awaiting_result">
-                                <span>🎯 <strong>本轮已参加 / 已考完</strong> (标为完结，等待本轮结果)</span>
+                                <span><strong>本轮已参加 / 已考完</strong>（标为完结，等待本轮结果）</span>
                             </label>
                         </div>
                     </div>
@@ -323,7 +323,7 @@
 
                 <div class="modal-footer">
                     <button class="btn-modal-cancel" onclick="closeManualStageModal()">取消</button>
-                    <button class="btn-modal-submit" id="btn-submit-manual-stage" onclick="submitManualStage()">⚡️ 立即保存并建档</button>
+                    <button class="btn-modal-submit" id="btn-submit-manual-stage" onclick="submitManualStage()">立即保存并建档</button>
                 </div>
             </div>
         </div>
@@ -332,7 +332,7 @@
         <div class="modal-backdrop" id="admin-edit-stage-modal" style="display:none;">
             <div class="modal-box">
                 <div class="modal-header">
-                    <div class="modal-header-icon bg-indigo-light">✏️</div>
+                    <div class="modal-header-icon bg-indigo-light">修</div>
                     <div>
                         <h3 class="modal-title" id="edit-modal-title">修正求职环节与档案</h3>
                         <p class="modal-desc">自由修正企业名称、环节归属、客观状态、约定时间与会议凭据</p>
@@ -366,13 +366,13 @@
                     <div class="form-item">
                         <label>推进环节名称 <span class="text-danger">*</span> <span class="form-hint">(点击快速填入)</span></label>
                         <div class="stage-preset-chips">
-                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('网申提交')">📬 网申提交</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('在线笔试')">📝 在线笔试</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('综合测评')">📊 综合测评</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('技术一面')">⏳ 技术一面</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('业务二面')">🎯 业务二面</button>
-                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('HR面')">👥 HR面</button>
-                            <button type="button" class="stage-preset-btn preset-gold" onclick="selectEditStagePreset('录用意向/Offer')">🎉 录用Offer</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('网申提交')">网申提交</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('在线笔试')">在线笔试</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('综合测评')">综合测评</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('技术一面')">技术一面</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('业务二面')">业务二面</button>
+                            <button type="button" class="stage-preset-btn" onclick="selectEditStagePreset('HR面')">HR 面</button>
+                            <button type="button" class="stage-preset-btn preset-gold" onclick="selectEditStagePreset('录用意向/Offer')">录用 Offer</button>
                         </div>
                         <input type="text" id="edit-stage-name" placeholder="例如：技术一面、专业面试" spellcheck="false" />
                     </div>
@@ -383,23 +383,23 @@
                         <div class="radio-options-row" style="flex-direction:column;gap:8px;">
                             <label class="radio-label">
                                 <input type="radio" name="edit-stage-status" value="scheduled">
-                                <span>⏳ <strong>收到通知待参加 / 待作答</strong> (加入待办日程 & 推送桌面挂件)</span>
+                                <span><strong>收到通知待参加 / 待作答</strong>（加入待办日程并推送桌面挂件）</span>
                             </label>
                             <label class="radio-label">
                                 <input type="radio" name="edit-stage-status" value="awaiting_result">
-                                <span>📬 <strong>已参加 / 等待本轮结果</strong> (从挂件移除，在看板中等待下一轮)</span>
+                                <span><strong>已参加 / 等待本轮结果</strong>（从挂件移除，在看板中等待下一轮）</span>
                             </label>
                             <label class="radio-label">
                                 <input type="radio" name="edit-stage-status" value="passed">
-                                <span>✅ <strong>本轮已顺利通过</strong> (标为已通过链路)</span>
+                                <span><strong>本轮已顺利通过</strong>（标为已通过链路）</span>
                             </label>
                             <label class="radio-label">
                                 <input type="radio" name="edit-stage-status" value="offered">
-                                <span>🎉 <strong>正式斩获录用 / Offer</strong> (求职看板置顶庆祝)</span>
+                                <span><strong>正式获得录用 / Offer</strong>（求职看板置顶）</span>
                             </label>
                             <label class="radio-label">
                                 <input type="radio" name="edit-stage-status" value="archived">
-                                <span>❌ <strong>流程终止 / 感谢信 / 放弃</strong> (移入已归档箱)</span>
+                                <span><strong>流程终止 / 感谢信 / 放弃</strong>（移入已归档箱）</span>
                             </label>
                         </div>
                     </div>
@@ -430,10 +430,10 @@
                 </div>
 
                 <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
-                    <button class="btn btn-outline btn-sm" style="color:var(--accent-rose);border-color:#FCA5A5;" onclick="deleteStageDirectly()">🗑️ 删除此环节</button>
+                    <button class="btn btn-outline btn-sm" style="color:var(--accent-rose);border-color:#FCA5A5;" onclick="deleteStageDirectly()">删除此环节</button>
                     <div style="display:flex;gap:10px;">
                         <button class="btn-modal-cancel" onclick="closeEditStageModal()">取消</button>
-                        <button class="btn-modal-submit" id="btn-save-edit-stage" onclick="submitEditStage()">💾 保存所有修改</button>
+                        <button class="btn-modal-submit" id="btn-save-edit-stage" onclick="submitEditStage()">保存所有修改</button>
                     </div>
                 </div>
             </div>
@@ -443,7 +443,7 @@
         <div class="modal-backdrop" id="admin-setup-modal" style="display:none;">
             <div class="modal-box modal-box-sm">
                 <div class="modal-header">
-                    <div class="modal-header-icon bg-emerald-light">⚡️</div>
+                    <div class="modal-header-icon bg-emerald-light">连</div>
                     <div>
                         <h3 class="modal-title">Supabase 云数据库连接配置</h3>
                         <p class="modal-desc">多端 Realtime 实时同步中枢与 7x24h 云端抓取存储</p>
@@ -465,7 +465,7 @@
 
                 <div class="modal-footer">
                     <button id="admin-btn-close-cfg" class="btn-modal-cancel">取消</button>
-                    <button id="admin-btn-save-cfg" class="btn-modal-submit">⚡️ 保存配置并连接</button>
+                    <button id="admin-btn-save-cfg" class="btn-modal-submit">保存配置并连接</button>
                 </div>
             </div>
         </div>
@@ -492,7 +492,7 @@
                 <div class="drawer-body">
                     <!-- 1. DeepSeek AI 智能提炼分析 -->
                     <div class="drawer-section">
-                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">🧠 DeepSeek AI 智能提炼分析</div>
+                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">DeepSeek AI 智能提炼分析</div>
                         <div class="ai-analysis-card" id="review-drawer-ai-card">
                             <!-- 动态注入分析要点 -->
                         </div>
@@ -500,7 +500,7 @@
 
                     <!-- 2. 邮件原文提取片段 -->
                     <div class="drawer-section" id="review-drawer-snippet-section" style="margin-top:16px;">
-                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">📜 邮件原始内容提取片段</div>
+                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">邮件原始内容提取片段</div>
                         <div class="email-snippet-card" id="review-drawer-snippet-card">
                             <!-- 动态注入邮件原文 -->
                         </div>
@@ -508,7 +508,7 @@
 
                     <!-- 3. 提取的凭据与直通入口 -->
                     <div class="drawer-section" id="review-drawer-cred-section" style="margin-top:16px;">
-                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">🔑 提取的凭据与直通入口</div>
+                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">提取的凭据与直通入口</div>
                         <div class="extracted-creds-group" id="review-drawer-creds-group">
                             <!-- 动态注入会议号与官网链接 -->
                         </div>
@@ -516,7 +516,7 @@
                 </div>
 
                 <div class="drawer-footer-actions">
-                    <button class="btn-drawer-approve" id="review-drawer-btn-approve">⚡️ 立即放行准入并同步看板</button>
+                    <button class="btn-drawer-approve" id="review-drawer-btn-approve">立即放行准入并同步看板</button>
                     <button class="btn-drawer-ignore" id="review-drawer-btn-ignore">✕ 移入已忽略</button>
                 </div>
             </div>

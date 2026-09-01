@@ -1868,3 +1868,185 @@ body {
     font-size: 0.82rem;
     color: var(--text-sub);
 }
+
+/* ==========================================================================
+   9. 响应式工作台：中窄窗口不压缩表格文字
+   ========================================================================== */
+@media (max-width: 1280px) {
+    .app-sidebar {
+        width: 210px;
+        padding-inline: 12px;
+    }
+
+    .app-main {
+        padding: 24px 24px 48px;
+    }
+
+    .bento-metrics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .main-topbar {
+        flex-wrap: wrap;
+    }
+
+    .topbar-actions {
+        width: 100%;
+    }
+
+    .search-input-wrap {
+        flex: 1;
+    }
+
+    .search-input-wrap input,
+    .search-input-wrap input:focus {
+        width: 100%;
+    }
+}
+
+@media (max-width: 1120px) {
+    .table-card {
+        overflow: visible;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .data-table,
+    .data-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .data-table thead {
+        display: none;
+    }
+
+    .data-table tbody {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .data-table tbody tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-content: start;
+        gap: 14px 16px;
+        padding: 18px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .data-table td {
+        display: block;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+    }
+
+    .data-table td:nth-child(1),
+    .data-table td:nth-child(2),
+    .data-table td:nth-child(3) {
+        grid-column: 1 / -1;
+    }
+
+    .data-table td:nth-child(5) {
+        text-align: right !important;
+    }
+
+    .comp-info,
+    .comp-name-row {
+        min-width: 0;
+    }
+
+    .comp-title,
+    .comp-position {
+        overflow-wrap: anywhere;
+    }
+
+    .pipeline-flow {
+        display: flex;
+    }
+
+    .badge-tag {
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    .empty-state {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+@media (max-width: 820px) {
+    .app-workspace {
+        display: block;
+    }
+
+    .app-sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 14px 16px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .sidebar-brand,
+    .sidebar-action-wrap,
+    .sidebar-footer,
+    .sidebar-nav-section-title {
+        display: none;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+    }
+
+    .sidebar-nav-item {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .sidebar-nav-item.active::before {
+        inset: auto 20px -7px;
+        width: auto;
+        height: 3px;
+    }
+
+    .nav-item-label {
+        flex: 0 1 auto;
+    }
+
+    .app-main {
+        padding: 20px 16px 40px;
+    }
+
+    .data-table tbody,
+    .review-cards-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .bento-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar-actions,
+    .form-row,
+    .modal-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .btn-action-pill,
+    .btn-modal-cancel,
+    .btn-modal-submit {
+        justify-content: center;
+        width: 100%;
+    }
+}
