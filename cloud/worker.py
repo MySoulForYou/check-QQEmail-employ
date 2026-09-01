@@ -36,16 +36,16 @@ class CloudSyncWorker:
         ai_conf = config.get("ai_config", {})
         sb_conf = config.get("supabase_config", {})
 
-        self.email_addr = os.getenv("EMAIL_USER", config.get("email"))
-        self.auth_code = os.getenv("EMAIL_AUTH_CODE", config.get("auth_code"))
-        self.imap_server = os.getenv("IMAP_SERVER", config.get("imap_server", "imap.qq.com"))
+        self.email_addr = (os.getenv("EMAIL_USER") or config.get("email") or "").strip()
+        self.auth_code = (os.getenv("EMAIL_AUTH_CODE") or config.get("auth_code") or "").strip()
+        self.imap_server = (os.getenv("IMAP_SERVER") or config.get("imap_server") or "imap.qq.com").strip()
 
-        self.api_key = os.getenv("DEEPSEEK_API_KEY", ai_conf.get("api_key"))
-        self.api_base = os.getenv("DEEPSEEK_API_BASE", ai_conf.get("api_base", "https://api.deepseek.com")).rstrip("/")
-        self.model_name = os.getenv("DEEPSEEK_MODEL", ai_conf.get("model", "deepseek-chat"))
+        self.api_key = (os.getenv("DEEPSEEK_API_KEY") or ai_conf.get("api_key") or "").strip()
+        self.api_base = (os.getenv("DEEPSEEK_API_BASE") or ai_conf.get("api_base") or "https://api.deepseek.com").strip().rstrip("/")
+        self.model_name = (os.getenv("DEEPSEEK_MODEL") or ai_conf.get("model") or "deepseek-chat").strip()
 
-        self.supabase_url = os.getenv("SUPABASE_URL", sb_conf.get("url", "")).rstrip("/")
-        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", sb_conf.get("secret_key", ""))
+        self.supabase_url = (os.getenv("SUPABASE_URL") or sb_conf.get("url") or "").strip().rstrip("/")
+        self.supabase_key = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or sb_conf.get("secret_key") or "").strip()
 
         # 3. 严格校验所有必需参数，杜绝未定义
         missing = []
@@ -351,6 +351,10 @@ class CloudSyncWorker:
             mail.select("INBOX")
         except Exception as e:
             logging.error(f"❌ 邮箱登录连接失败: {e}")
+            logging.error(f"💡 排查建议: 当前连接服务器为 [{self.imap_server}]")
+            logging.error("   1. 若使用腾讯企业邮/企业微信邮箱，请确保 IMAP_SERVER 为 imap.exmail.qq.com (信创版为 xcimap.exmail.qq.com) 并使用「客户端专用密码」；")
+            logging.error("   2. 网页端请确认已开启 POP3/IMAP 客户端服务协议；")
+            logging.error("   3. 若为个人 QQ 邮箱，请使用账户设置中生成的 16 位授权码而非 QQ 密码。")
             return
 
         # 3. 检索新邮件 (增量模式 / 首次 10 天保护窗口)

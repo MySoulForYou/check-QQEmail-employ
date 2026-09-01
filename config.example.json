@@ -1,6 +1,19 @@
 {
+    "email": "your_email@example.com",
+    "auth_code": "your_imap_auth_code_or_client_password",
+    "imap_server": "imap.exmail.qq.com",
+    "ai_config": {
+        "api_key": "sk-your-deepseek-key",
+        "api_base": "https://api.deepseek.com",
+        "model": "deepseek-chat"
+    },
     "supabase": {
         "url": "YOUR_SUPABASE_PROJECT_URL",
         "publishable_key": "YOUR_SUPABASE_PUBLISHABLE_ANON_KEY"
+    },
+    "supabase_config": {
+        "url": "YOUR_SUPABASE_PROJECT_URL",
+        "secret_key": "YOUR_SUPABASE_SERVICE_ROLE_SECRET_KEY"
     }
 }
+

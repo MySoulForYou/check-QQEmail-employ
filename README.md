@@ -73,11 +73,37 @@
 
 ### 🌟 阶段一：准备三大免费云端平台密钥 (约 2 分钟)
 
-#### 1. 📧 获取个人邮箱 IMAP 授权码 (以 QQ 邮箱为例)
-* 登录网页版 QQ 邮箱 ➡️ 点击上方 **【设置】** ➡️ **【账户】**；
-* 向下滚动找到 **POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务**；
-* 开启 **`POP3/SMTP服务`** 与 **`IMAP/SMTP服务`**；
-* 点击 **【生成授权码】**，按提示发送短信即可获取一段 **16 位字母授权码**（保存好备用）。
+#### 1. 📧 获取邮箱 IMAP 授权码与服务器信息
+
+本项目支持 **QQ 邮箱、腾讯企业邮箱（企业微信邮箱）、网易 163 邮箱** 等所有支持标准 IMAP 协议的邮箱服务：
+
+<details open>
+<summary><b>🔹 选项 A：个人 QQ 邮箱（最常用）</b></summary>
+
+1. 网页端登录 [QQ 邮箱 (mail.qq.com)](https://mail.qq.com/) ➡️ 点击上方 **【设置】** ➡️ **【账户】**；
+2. 向下滚动找到 **POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务**；
+3. 开启 **`POP3/SMTP服务`** 与 **`IMAP/SMTP服务`**；
+4. 点击 **【生成授权码】**，按提示发送短信即可获取一段 **16 位字母授权码**（作为 `EMAIL_AUTH_CODE`）；
+5. 默认 IMAP 服务器为 `imap.qq.com`（无需额外配置 `IMAP_SERVER`）。
+</details>
+
+<details>
+<summary><b>🔹 选项 B：腾讯企业邮箱 / 企业微信邮箱</b></summary>
+
+1. **开启 IMAP 协议**：电脑浏览器登录 [腾讯企业邮箱网页版 (exmail.qq.com)](https://exmail.qq.com/) ➡️ 点击右上角 **【设置】** ➡️ **【收发信设置】** ➡️ 开启 **POP3/IMAP 客户端服务协议** 并保存；
+   > 💡 *注：若无法勾选，需企业管理员在企业微信管理后台【协作 ➡️ 邮件 ➡️ 安全管理 ➡️ 客户端访问权限】开启权限。*
+2. **生成专用密码**：进入 **【设置】** ➡️ **【邮箱绑定 / 安全登录】** ➡️ 找到 **【客户端专用密码】** 点击生成（作为 `EMAIL_AUTH_CODE`，开启双重验证后**不能**使用网页密码）；
+3. **IMAP 服务器**：在 GitHub Secrets 中添加 `IMAP_SERVER` 为 **`imap.exmail.qq.com`**（信创版填 `xcimap.exmail.qq.com`）。
+</details>
+
+<details>
+<summary><b>🔹 选项 C：网易 163 邮箱</b></summary>
+
+1. 网页端登录 [网易 163 邮箱 (mail.163.com)](https://mail.163.com/) ➡️ 点击上方 **【设置】** ➡️ **【POP3/SMTP/IMAP】**；
+2. 勾选开启 **POP3/SMTP 服务** 与 **IMAP/SMTP 服务**；
+3. 点击 **【新增授权密码】**，完成短信验证后获取授权码；
+4. **IMAP 服务器**：在 GitHub Secrets 中添加 `IMAP_SERVER` 为 **`imap.163.com`**。
+</details>
 
 #### 2. 🤖 获取 DeepSeek AI API Key
 * 登录 [DeepSeek 开放平台](https://platform.deepseek.com/) ➡️ 进入 **【API Keys】**；
@@ -163,26 +189,33 @@ CREATE POLICY "Allow public read sync_state" ON sync_state FOR ALL USING (true) 
 [ 本项目 GitHub 主页 ]
          ⬇️ 点击右上角【Fork】按钮 (一键派生到个人账号)
 [ 属于您自己的个人仓库: 你的用户名/OfferPilot ]
-         ⬇️ 配置 5 个 Actions Secrets 密码
+         ⬇️ 配置机密 Secrets 凭据
 [ 🎉 您的专属云端大脑开始 7x24h 自动工作！]
 ```
 
 1. **一键 Fork 仓库**：
    * 打开本项目 GitHub 页面，点击右上角的 **【Fork】** 按钮，按默认设置点击 **【Create fork】**；
-2. **填入 5 个机密密钥 (Secrets)**：
+2. **填入机密密钥 (Secrets)**：
    * 在您刚刚 Fork 出来的个人仓库中，点击顶部 **【Settings】** ➡️ 左侧菜单 **【Secrets and variables】** ➡️ **【Actions】**；
-   * 点击绿色的 **【New repository secret】**，依次添加以下 5 个机密：
+   * 点击绿色的 **【New repository secret】**，依次添加以下机密参数：
 
-| 机密名称 (Secret Name) | 应该填入的值 (Secret Value) | 来源说明 |
-| :--- | :--- | :--- |
-| **`EMAIL_USER`** | 您的邮箱地址（如 `12345678@qq.com`） | 个人邮箱账号 |
-| **`EMAIL_AUTH_CODE`** | 刚才生成的 16 位邮箱授权码 | 邮箱 IMAP 授权码 |
-| **`DEEPSEEK_API_KEY`** | 以 `sk-` 开头的 DeepSeek Key | AI 大模型密钥 |
-| **`SUPABASE_URL`** | Supabase 项目 Project URL | 数据库 HTTPS 地址 |
-| **`SUPABASE_SERVICE_ROLE_KEY`** | Supabase 的 `service_role` secret key | 数据库超级写私钥 |
+| 机密名称 (Secret / Variable) | 是否必填 | 应该填入的值 (Value) | 来源说明 |
+| :--- | :---: | :--- | :--- |
+| **`EMAIL_USER`** | 必填 | 您的邮箱完整地址（如 `12345678@qq.com` 或 `hr@company.com`） | 邮箱账号 |
+| **`EMAIL_AUTH_CODE`** | 必填 | 邮箱生成的 IMAP 授权码或客户端专用密码 | 邮箱鉴权密码 |
+| **`DEEPSEEK_API_KEY`** | 必填 | 以 `sk-` 开头的 DeepSeek API Key | AI 提取模型密钥 |
+| **`SUPABASE_URL`** | 必填 | Supabase 项目 Project URL | 数据库 HTTPS 地址 |
+| **`SUPABASE_SERVICE_ROLE_KEY`** | 必填 | Supabase 的 `service_role` secret key | 数据库超级写私钥 |
+| **`IMAP_SERVER`** | 选填 | 如 `imap.exmail.qq.com`（腾讯企业邮）或 `imap.163.com` | 不填默认 `imap.qq.com` |
+| **`DEEPSEEK_API_BASE`** | 选填 | 如第三方 AI 代理地址 `https://api.your-proxy.com` | 不填默认官方 `https://api.deepseek.com` |
+| **`DEEPSEEK_MODEL`** | 选填 | 如 `deepseek-chat` | 不填默认 `deepseek-chat` |
 
 > [!TIP]
-> **首次测试云端抓取**：配置完成后，点击仓库顶部的 **【Actions】** 标签 ➡️ 点击左侧的 **Recruitment Email Sync** ➡️ 点击右侧 **【Run workflow】** 即可手动立即触发一次云端抓取。通常 8 秒内即可在 Supabase 看到新邮件入库！
+> 💡 **配置小贴士**：
+> 1. **前 5 项必填机密**请在 **【Secrets】** 标签页下添加（保存后自动加密打码）；
+> 2. **选填参数**（如 `IMAP_SERVER`、`DEEPSEEK_API_BASE`、`DEEPSEEK_MODEL`）既可以添加在 **【Secrets】** 中，也可以添加在 **【Variables】** 标签页中（方便明文查看与修改）。
+> 3. **首次测试云端抓取**：配置完成后，点击仓库顶部的 **【Actions】** 标签 ➡️ 点击左侧的 **Recruitment Email Sync** ➡️ 点击右侧 **【Run workflow】** 即可手动立即触发一次云端抓取。通常 8 秒内即可在 Supabase 看到新邮件入库！
+
 
 ---
 
