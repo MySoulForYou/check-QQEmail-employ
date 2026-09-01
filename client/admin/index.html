@@ -209,10 +209,20 @@
 
         <!-- ==================== 3. 公司求职全景时间线抽屉 (Timeline Drawer) ==================== -->
         <div class="drawer-backdrop" id="timeline-drawer-overlay" style="display:none;">
+            <aside class="job-requirements-panel" id="job-requirements-panel" aria-hidden="true">
+                <div class="requirements-header">
+                    <div>
+                        <span class="requirements-eyebrow">职位详情</span>
+                        <h2 id="requirements-position">招聘要求</h2>
+                        <p id="requirements-company">尚未关联招聘需求</p>
+                    </div>
+                    <button class="drawer-close-btn" type="button" onclick="closeJobRequirementsPanel()" title="关闭招聘要求">&times;</button>
+                </div>
+                <div class="requirements-body" id="requirements-content"></div>
+            </aside>
             <div class="drawer-container" id="timeline-drawer">
                 <div class="drawer-header">
                     <div class="drawer-header-left">
-                        <div class="drawer-company-avatar" id="drawer-avatar">企</div>
                         <div>
                             <div class="drawer-title-row">
                                 <h2 id="drawer-company-name">目标公司</h2>
@@ -225,7 +235,10 @@
                             </div>
                         </div>
                     </div>
-                    <button class="drawer-close-btn" id="drawer-close-btn" title="关闭抽屉 (Esc)">&times;</button>
+                    <div class="drawer-header-actions">
+                        <button class="btn-job-requirements" id="btn-job-requirements" type="button" onclick="toggleJobRequirementsForCurrentCompany()">招聘要求</button>
+                        <button class="drawer-close-btn" id="drawer-close-btn" title="关闭抽屉 (Esc)">&times;</button>
+                    </div>
                 </div>
 
                 <div class="drawer-body">
@@ -294,8 +307,8 @@
                             <input type="text" id="manual-stage-time" placeholder="例如：2026-08-25 14:00、明天 10:00" spellcheck="false" />
                         </div>
                         <div class="form-item form-col">
-                            <label>会议凭据 / 地点 (选填)</label>
-                            <input type="text" id="manual-stage-notes" placeholder="例如：腾讯会议 123-456-789" spellcheck="false" />
+                            <label>公司官网 (选填)</label>
+                            <input type="url" id="manual-stage-notes" placeholder="例如：https://www.example.com" spellcheck="false" />
                         </div>
                     </div>
 
@@ -335,7 +348,7 @@
                     <div class="modal-header-icon bg-indigo-light">修</div>
                     <div>
                         <h3 class="modal-title" id="edit-modal-title">修正求职环节与档案</h3>
-                        <p class="modal-desc">自由修正企业名称、环节归属、客观状态、约定时间与会议凭据</p>
+                        <p class="modal-desc">自由修正企业名称、环节归属、客观状态、约定时间与公司官网</p>
                     </div>
                     <button class="modal-close-x" onclick="closeEditStageModal()">&times;</button>
                 </div>
@@ -404,15 +417,15 @@
                         </div>
                     </div>
 
-                    <!-- 4. 约定时间与凭据 -->
+                    <!-- 4. 约定时间与公司官网 -->
                     <div class="form-row">
                         <div class="form-item form-col">
                             <label>约定 / 截止时间 (选填)</label>
                             <input type="text" id="edit-schedule-time" placeholder="例如：2026-08-25 19:00 或 待定" spellcheck="false" />
                         </div>
                         <div class="form-item form-col">
-                            <label>会议号 / 凭据 / 官网 (选填)</label>
-                            <input type="text" id="edit-meeting-info" placeholder="例如：腾讯会议 123-456-789 或 官网链接" spellcheck="false" />
+                            <label>公司官网 (选填)</label>
+                            <input type="url" id="edit-meeting-info" placeholder="例如：https://www.example.com" spellcheck="false" />
                         </div>
                     </div>
 
@@ -439,7 +452,64 @@
             </div>
         </div>
 
-        <!-- ==================== 5. ⚙️ Supabase 云数据库配置弹窗 (Config Modal) ==================== -->
+        <!-- ==================== 5. 人工录入招聘要求 ==================== -->
+        <div class="modal-backdrop" id="job-opportunity-modal" style="display:none;">
+            <div class="modal-box job-opportunity-modal-box">
+                <div class="modal-header">
+                    <div class="modal-header-icon">JD</div>
+                    <div>
+                        <h3 class="modal-title">人工录入招聘要求</h3>
+                        <p class="modal-desc">仅保存人工填写内容，不抓取网页，也不调用 AI</p>
+                    </div>
+                    <button class="modal-close-x" onclick="closeManualJobOpportunityModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="job-opportunity-app-id" />
+                    <input type="hidden" id="job-opportunity-id" />
+                    <div class="form-row">
+                        <div class="form-item form-col">
+                            <label>公司名称 <span class="text-danger">*</span></label>
+                            <input type="text" id="job-opportunity-company" spellcheck="false" />
+                        </div>
+                        <div class="form-item form-col">
+                            <label>岗位名称 <span class="text-danger">*</span></label>
+                            <input type="text" id="job-opportunity-position" spellcheck="false" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item form-col"><label>部门（选填）</label><input type="text" id="job-opportunity-department" /></div>
+                        <div class="form-item form-col"><label>职位编号（选填）</label><input type="text" id="job-opportunity-code" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item form-col"><label>工作地点（选填）</label><input type="text" id="job-opportunity-location" /></div>
+                        <div class="form-item form-col"><label>招聘类型（选填）</label><input type="text" id="job-opportunity-type" placeholder="例如：校园招聘、实习招聘" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item form-col"><label>发布日期（选填）</label><input type="text" id="job-opportunity-published" placeholder="例如：2026-07-21" /></div>
+                        <div class="form-item form-col"><label>截止日期（选填）</label><input type="text" id="job-opportunity-deadline" placeholder="例如：2026-09-30" /></div>
+                    </div>
+                    <div class="form-item">
+                        <label>职位原始网址（选填）</label>
+                        <input type="url" id="job-opportunity-url" placeholder="https://career.example.com/jobs/123" />
+                    </div>
+                    <div class="form-item">
+                        <label>工作职责</label>
+                        <textarea class="job-opportunity-textarea" id="job-opportunity-responsibilities" rows="6" placeholder="逐条粘贴或填写工作职责"></textarea>
+                    </div>
+                    <div class="form-item">
+                        <label>任职要求</label>
+                        <textarea class="job-opportunity-textarea" id="job-opportunity-requirements" rows="7" placeholder="逐条粘贴或填写任职资格、专业和技能要求"></textarea>
+                    </div>
+                    <div id="job-opportunity-msg" class="cfg-status-message"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-modal-cancel" onclick="closeManualJobOpportunityModal()">取消</button>
+                    <button class="btn-modal-submit" id="btn-save-job-opportunity" onclick="submitManualJobOpportunity()">保存招聘要求</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 6. ⚙️ Supabase 云数据库配置弹窗 (Config Modal) ==================== -->
         <div class="modal-backdrop" id="admin-setup-modal" style="display:none;">
             <div class="modal-box modal-box-sm">
                 <div class="modal-header">
@@ -475,7 +545,6 @@
             <div class="drawer-container review-detail-drawer" id="review-detail-drawer">
                 <div class="drawer-header">
                     <div class="drawer-header-left">
-                        <div class="drawer-company-avatar" id="review-drawer-avatar">企</div>
                         <div>
                             <div class="drawer-title-row">
                                 <h2 id="review-drawer-title" style="font-size:1.15rem;">邮件解析详情</h2>
@@ -506,11 +575,11 @@
                         </div>
                     </div>
 
-                    <!-- 3. 提取的凭据与直通入口 -->
+                    <!-- 3. 公司官网 -->
                     <div class="drawer-section" id="review-drawer-cred-section" style="margin-top:16px;">
-                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">提取的凭据与直通入口</div>
+                        <div class="drawer-section-title" style="font-size:0.88rem;margin-bottom:8px;">公司官网</div>
                         <div class="extracted-creds-group" id="review-drawer-creds-group">
-                            <!-- 动态注入会议号与官网链接 -->
+                            <!-- 动态注入公司官网链接 -->
                         </div>
                     </div>
                 </div>

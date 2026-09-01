@@ -16,12 +16,43 @@ function escapeHTML(str) {
     );
 }
 
+function normalizeWebsite(value) {
+    let website = String(value || '').trim();
+    if (!website) return '';
+    if (!/^https?:\/\//i.test(website)) website = `https://${website}`;
+    try {
+        const parsed = new URL(website);
+        return ['http:', 'https:'].includes(parsed.protocol) && parsed.hostname.includes('.') ? parsed.href : '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function getCompanyWebsite(app) {
+    const opportunity = allJobOpportunities.find(job => job.application_id === app?.id);
+    const opportunityWebsite = normalizeWebsite(opportunity?.source_url);
+    if (opportunityWebsite) return opportunityWebsite;
+    const stages = app?.stages || appStagesMap[app?.id] || [];
+    return stages
+        .slice()
+        .sort((a, b) => (b.seq || 0) - (a.seq || 0))
+        .map(stage => normalizeWebsite(stage.meeting_info))
+        .find(Boolean) || '';
+}
+
+function renderCompanyName(app, safeCompany, className) {
+    const website = getCompanyWebsite(app);
+    if (!website) return `<span class="${className}">${safeCompany}</span>`;
+    return `<a class="${className} company-website-link" href="${escapeHTML(website)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="打开公司官网">${safeCompany}</a>`;
+}
+
 let supabase = null;
 let realtimeChannelApps = null;
 let realtimeChannelStages = null;
 
 let allApplications = [];
 let allStages = [];
+let allJobOpportunities = [];
 let appStagesMap = {}; // application_id -> [stages...]
 
 let currentBentoFilter = 'all';       // 'all' | 'todo' | 'waiting' | 'offer' (上层待办/结果客观状态)
@@ -30,32 +61,7 @@ let currentSearchQuery = '';
 let currentReviewCategory = 'all';
 
 // ==========================================================================
-// 1. 公司头像 Monogram 背景颜色生成器 (相同公司生成统一品牌色)
-// ==========================================================================
-const AVATAR_PALETTE = [
-    '#4F46E5', '#2563EB', '#0D9488', '#059669', 
-    '#D97706', '#DC2626', '#7C3AED', '#DB2777', 
-    '#0284C7', '#475569'
-];
-
-function getCompanyColor(companyName) {
-    if (!companyName) return AVATAR_PALETTE[0];
-    let hash = 0;
-    for (let i = 0; i < companyName.length; i++) {
-        hash = companyName.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTE.length;
-    return AVATAR_PALETTE[index];
-}
-
-function getCompanyInitial(companyName) {
-    if (!companyName) return '企';
-    const clean = companyName.replace(/[\(\)（）\s·\-]/g, '');
-    return clean.charAt(0) || '企';
-}
-
-// ==========================================================================
-// 2. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
+// 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
 // ==========================================================================
 function getStageStatusMetaRaw(stage, app) {
     if (!stage) {
@@ -579,6 +585,7 @@ function setupEventListeners() {
             closeConfigModal();
             closeManualStageModal();
             closeEditStageModal();
+            closeManualJobOpportunityModal();
         }
     });
 
@@ -765,11 +772,18 @@ async function loadAllData() {
             .select('*')
             .order('seq', { ascending: true });
 
+        const resJobs = await supabase
+            .from('job_opportunities')
+            .select('*')
+            .order('updated_at', { ascending: false });
+
         if (resApps.error) throw resApps.error;
         if (resStages.error) throw resStages.error;
 
         allApplications = resApps.data || [];
         allStages = resStages.data || [];
+        allJobOpportunities = resJobs.error ? [] : (resJobs.data || []);
+        if (resJobs.error) console.info('招聘需求表尚未启用:', resJobs.error.message);
 
         // 构建 application_id -> [stages] 映射表
         appStagesMap = {};
@@ -982,8 +996,7 @@ function renderDashboard() {
         const safeCompany = escapeHTML(app.company || '未知企业');
         const safeDept = app.department ? escapeHTML(app.department) : '';
         const safePos = escapeHTML(app.position || '校招投递岗位');
-        const avatarBg = getCompanyColor(app.company);
-        const avatarInitial = getCompanyInitial(app.company);
+        const companyNameHTML = renderCompanyName(app, safeCompany, 'comp-title');
 
         let timeFormatted = '待定';
         if (latestStage && latestStage.schedule_time && latestStage.schedule_time !== '待定') {
@@ -1001,15 +1014,12 @@ function renderDashboard() {
             <tr class="table-clickable-row" onclick="openTimelineDrawer('${app.id}')">
                 <td>
                     <div class="company-cell">
-                        <div class="comp-avatar" style="background:${avatarBg};">
-                            ${avatarInitial}
-                        </div>
                         <div class="comp-info">
                             <div class="comp-name-row">
-                                <span class="comp-title">${safeCompany}</span>
+                                ${companyNameHTML}
                                 ${safeDept ? `<span class="dept-pill">${safeDept}</span>` : ''}
                             </div>
-                            <span class="comp-position">${safePos}</span>
+                            <span class="comp-position" title="${safePos}">${safePos}</span>
                         </div>
                     </div>
                 </td>
@@ -1044,7 +1054,6 @@ function openTimelineDrawer(appId) {
     const stages = (appStagesMap[app.id] || []).filter(s => s.stage_status !== 'ignored');
 
     const overlay = document.getElementById('timeline-drawer-overlay');
-    const drawerAvatar = document.getElementById('drawer-avatar');
     const drawerTitle = document.getElementById('drawer-company-name');
     const drawerBadge = document.getElementById('drawer-status-badge');
     const drawerPos = document.getElementById('drawer-position-text');
@@ -1052,16 +1061,15 @@ function openTimelineDrawer(appId) {
     const timelineContent = document.getElementById('drawer-timeline-content');
 
     if (!overlay) return;
+    closeJobRequirementsPanel();
 
     // 🎯 核心升级：按 seq DESC 倒序排列（最新进展在最上方！）
     const reverseStages = [...stages].sort((a, b) => (b.seq || 1) - (a.seq || 1));
     const latestStage = reverseStages[0];
     const latestMeta = getStageStatusMeta(latestStage, app);
 
-    drawerAvatar.style.background = getCompanyColor(app.company);
-    drawerAvatar.textContent = getCompanyInitial(app.company);
     drawerTitle.dataset.appId = app.id;
-    drawerTitle.innerHTML = `<span>${escapeHTML(app.company)}</span>${app.department ? `<span class="badge-tag badge-indigo" style="font-size:0.8rem;margin-left:8px;padding:2px 8px;">${escapeHTML(app.department)}</span>` : ''}`;
+    drawerTitle.innerHTML = `${renderCompanyName(app, escapeHTML(app.company), 'drawer-company-link')}${app.department ? `<span class="badge-tag badge-indigo" style="font-size:0.8rem;margin-left:8px;padding:2px 8px;">${escapeHTML(app.department)}</span>` : ''}`;
     drawerBadge.className = `badge-tag ${latestMeta.badgeClass}`;
     drawerBadge.textContent = latestMeta.badgeText;
     drawerPos.textContent = `投递岗位: ${app.position || '校招应聘'}`;
@@ -1080,7 +1088,7 @@ function openTimelineDrawer(appId) {
             const meta = getStageStatusMeta(s, app);
             const safeType = escapeHTML(s.stage_name || '环节');
             const safeTime = escapeHTML(s.schedule_time || '时间待定');
-            const safeMeeting = escapeHTML(s.meeting_info || '');
+            const safeMeeting = normalizeWebsite(s.meeting_info);
             const safeNotes = escapeHTML(s.notes || '');
 
             let dateStr = '通知时间';
@@ -1101,7 +1109,7 @@ function openTimelineDrawer(appId) {
                         <button class="btn btn-primary btn-sm" style="font-size:0.75rem;padding:3px 10px;" onclick="advanceStageStatus('${s.id}', 'awaiting_result', '${app.id}')" title="标记为已完成并等待下一轮">
                             ${btnLabel}
                         </button>
-                        <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、会议号或备注">
+                        <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、公司官网或备注">
                             ✏️ 修正
                         </button>
                         <button class="btn btn-outline btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#64748B;" onclick="rollbackCurrentStage('${app.id}', '${s.id}')" title="手误推进或错发邮件：撤销当前轮次并无缝回退到上一轮">
@@ -1113,13 +1121,13 @@ function openTimelineDrawer(appId) {
                         <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#64748B;" onclick="advanceStageStatus('${s.id}', 'scheduled', '${app.id}')" title="误操作撤回：重新激活待办并推回桌面挂件">
                             ↩ 撤回待办
                         </button>
-                        <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、会议号或备注">
+                        <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、公司官网或备注">
                             ✏️ 修正
                         </button>
                     `;
                 } else {
                     actionButtonsHTML = `
-                        <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、会议号或备注">
+                        <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、公司官网或备注">
                             ✏️ 修正
                         </button>
                     `;
@@ -1158,8 +1166,8 @@ function openTimelineDrawer(appId) {
 
                         ${safeMeeting ? `
                             <div class="timeline-notes-box" style="margin-top:8px;">
-                                <span><strong>会议/凭据:</strong> ${safeMeeting}</span>
-                                <button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:0.75rem;" onclick="navigator.clipboard.writeText('${safeMeeting}');alert('已复制会议凭据到剪贴板！');">复制</button>
+                                <span><strong>公司官网</strong><small>已关联当前职位来源</small></span>
+                                <a class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:0.75rem;" href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer">打开 ↗</a>
                             </div>
                         ` : ''}
 
@@ -1179,7 +1187,191 @@ function openTimelineDrawer(appId) {
 
 function closeTimelineDrawer() {
     const overlay = document.getElementById('timeline-drawer-overlay');
+    closeJobRequirementsPanel();
     if (overlay) overlay.style.display = 'none';
+}
+
+function findJobOpportunity(app) {
+    if (!app) return null;
+    return allJobOpportunities.find(job => job.application_id === app.id)
+        || allJobOpportunities.find(job =>
+            (job.company || '').trim() === (app.company || '').trim()
+            && (job.position || '').trim() === (app.position || '').trim()
+        )
+        || null;
+}
+
+function toggleJobRequirementsForCurrentCompany() {
+    const appId = document.getElementById('drawer-company-name')?.dataset.appId;
+    const panel = document.getElementById('job-requirements-panel');
+    if (!appId || !panel) return;
+    if (panel.classList.contains('is-open')) closeJobRequirementsPanel();
+    else openJobRequirementsPanel(appId);
+}
+
+function openJobRequirementsPanel(appId) {
+    const app = allApplications.find(item => item.id === appId);
+    const panel = document.getElementById('job-requirements-panel');
+    const overlay = document.getElementById('timeline-drawer-overlay');
+    const content = document.getElementById('requirements-content');
+    const title = document.getElementById('requirements-position');
+    const company = document.getElementById('requirements-company');
+    const button = document.getElementById('btn-job-requirements');
+    if (!app || !panel || !content || !title || !company) return;
+
+    const job = findJobOpportunity(app);
+    title.textContent = job?.position || app.position || '招聘要求';
+    company.textContent = job?.company || app.company || '未知企业';
+
+    if (!job) {
+        const website = getCompanyWebsite(app);
+        content.innerHTML = `
+            <div class="requirements-empty">
+                <div class="requirements-empty-mark">JD</div>
+                <h3>尚未录入招聘要求</h3>
+                <p>可以人工填写职位编号、工作职责和任职要求；系统不会抓取网页或调用 AI。</p>
+                <div class="requirements-actions">
+                    <button class="requirements-primary-link" type="button" onclick="openManualJobOpportunityModal('${app.id}')">人工录入</button>
+                    ${website ? `<a class="requirements-secondary-link" href="${escapeHTML(website)}" target="_blank" rel="noopener noreferrer">前往公司官网 ↗</a>` : ''}
+                </div>
+            </div>
+        `;
+    } else {
+        const sourceUrl = normalizeWebsite(job.source_url);
+        const facts = [
+            job.location ? `<span>工作地点<strong>${escapeHTML(job.location)}</strong></span>` : '',
+            job.recruitment_type ? `<span>招聘类型<strong>${escapeHTML(job.recruitment_type)}</strong></span>` : '',
+            job.job_code ? `<span>职位编号<strong>${escapeHTML(job.job_code)}</strong></span>` : '',
+            job.published_at ? `<span>发布日期<strong>${escapeHTML(job.published_at)}</strong></span>` : '',
+        ].filter(Boolean).join('');
+        content.innerHTML = `
+            ${facts ? `<div class="requirements-facts">${facts}</div>` : ''}
+            <section class="requirements-section">
+                <h3>工作职责</h3>
+                <div class="requirements-copy">${escapeHTML(job.responsibilities || '暂未提取工作职责')}</div>
+            </section>
+            <section class="requirements-section">
+                <h3>任职要求</h3>
+                <div class="requirements-copy">${escapeHTML(job.requirements || '暂未提取任职要求')}</div>
+            </section>
+            <div class="requirements-actions">
+                <button class="requirements-primary-link" type="button" onclick="openManualJobOpportunityModal('${app.id}')">编辑招聘要求</button>
+                ${sourceUrl ? `<a class="requirements-secondary-link" href="${escapeHTML(sourceUrl)}" target="_blank" rel="noopener noreferrer">查看原始职位 ↗</a>` : ''}
+            </div>
+        `;
+    }
+
+    panel.classList.add('is-open');
+    panel.setAttribute('aria-hidden', 'false');
+    overlay?.classList.add('requirements-open');
+    button?.classList.add('is-active');
+}
+
+function closeJobRequirementsPanel() {
+    const panel = document.getElementById('job-requirements-panel');
+    panel?.classList.remove('is-open');
+    panel?.setAttribute('aria-hidden', 'true');
+    document.getElementById('timeline-drawer-overlay')?.classList.remove('requirements-open');
+    document.getElementById('btn-job-requirements')?.classList.remove('is-active');
+}
+
+function setJobOpportunityField(id, value) {
+    const input = document.getElementById(id);
+    if (input) input.value = value || '';
+}
+
+function openManualJobOpportunityModal(appId) {
+    const app = allApplications.find(item => item.id === appId);
+    const modal = document.getElementById('job-opportunity-modal');
+    if (!app || !modal) return;
+    const job = findJobOpportunity(app);
+
+    setJobOpportunityField('job-opportunity-app-id', app.id);
+    setJobOpportunityField('job-opportunity-id', job?.id);
+    setJobOpportunityField('job-opportunity-company', job?.company || app.company);
+    setJobOpportunityField('job-opportunity-position', job?.position || app.position);
+    setJobOpportunityField('job-opportunity-department', job?.department || app.department);
+    setJobOpportunityField('job-opportunity-code', job?.job_code);
+    setJobOpportunityField('job-opportunity-location', job?.location);
+    setJobOpportunityField('job-opportunity-type', job?.recruitment_type);
+    setJobOpportunityField('job-opportunity-published', job?.published_at);
+    setJobOpportunityField('job-opportunity-deadline', job?.deadline);
+    setJobOpportunityField('job-opportunity-url', job?.source_url || getCompanyWebsite(app));
+    setJobOpportunityField('job-opportunity-responsibilities', job?.responsibilities);
+    setJobOpportunityField('job-opportunity-requirements', job?.requirements);
+    const message = document.getElementById('job-opportunity-msg');
+    if (message) message.textContent = '';
+    modal.style.display = 'flex';
+}
+
+function closeManualJobOpportunityModal() {
+    const modal = document.getElementById('job-opportunity-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitManualJobOpportunity() {
+    if (!supabase) return;
+    const appId = document.getElementById('job-opportunity-app-id')?.value;
+    const jobId = document.getElementById('job-opportunity-id')?.value;
+    const company = (document.getElementById('job-opportunity-company')?.value || '').trim();
+    const position = (document.getElementById('job-opportunity-position')?.value || '').trim();
+    const sourceInput = (document.getElementById('job-opportunity-url')?.value || '').trim();
+    const sourceUrl = normalizeWebsite(sourceInput);
+    const message = document.getElementById('job-opportunity-msg');
+    const button = document.getElementById('btn-save-job-opportunity');
+
+    if (!company || !position) {
+        if (message) message.textContent = '公司名称和岗位名称不能为空';
+        return;
+    }
+    if (sourceInput && !sourceUrl) {
+        if (message) message.textContent = '职位原始网址格式不正确';
+        return;
+    }
+
+    const payload = {
+        application_id: appId,
+        company,
+        department: (document.getElementById('job-opportunity-department')?.value || '').trim(),
+        position,
+        job_code: (document.getElementById('job-opportunity-code')?.value || '').trim(),
+        location: (document.getElementById('job-opportunity-location')?.value || '').trim(),
+        recruitment_type: (document.getElementById('job-opportunity-type')?.value || '').trim(),
+        published_at: (document.getElementById('job-opportunity-published')?.value || '').trim(),
+        deadline: (document.getElementById('job-opportunity-deadline')?.value || '').trim(),
+        responsibilities: (document.getElementById('job-opportunity-responsibilities')?.value || '').trim(),
+        requirements: (document.getElementById('job-opportunity-requirements')?.value || '').trim(),
+        source_url: sourceUrl,
+        status: 'saved',
+        updated_at: new Date().toISOString(),
+    };
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = '正在保存...';
+    }
+    try {
+        let result;
+        if (jobId) result = await supabase.from('job_opportunities').update(payload).eq('id', jobId);
+        else result = await supabase.from('job_opportunities').insert([{ ...payload, created_at: new Date().toISOString() }]);
+        if (result.error) throw result.error;
+        await loadAllData();
+        closeManualJobOpportunityModal();
+        openJobRequirementsPanel(appId);
+        showAdminToast('招聘要求已保存', `${company} · ${position}`);
+    } catch (error) {
+        console.error('保存招聘要求失败:', error);
+        if (message) {
+            message.textContent = error.message?.includes('job_opportunities')
+                ? '请先在 Supabase 执行 job_opportunities.sql 建表脚本'
+                : `保存失败：${error.message || '未知错误'}`;
+        }
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = '保存招聘要求';
+        }
+    }
 }
 
 // ==========================================================================
@@ -1374,10 +1566,9 @@ function renderReviews(stages) {
         const safeType = escapeHTML(stage.stage_name || '环节');
         const safeTime = escapeHTML(stage.schedule_time || '待定');
         const safeNextExp = escapeHTML(stage.next_expectation || '等待下一步通知');
-        const safeMeeting = (stage.meeting_info || '').trim();
+        const safeMeeting = normalizeWebsite(stage.meeting_info);
         const safeNotes = (stage.notes || '').trim();
-        const avatarBg = getCompanyColor(app.company);
-        const avatarInitial = getCompanyInitial(app.company);
+        const companyNameHTML = renderCompanyName(app, safeCompany, 'review-card-name');
 
         // AI 摘要
         let aiSummary = '';
@@ -1389,13 +1580,9 @@ function renderReviews(stages) {
             aiSummary = `DeepSeek AI 提取：已识别为「${safeCompany}」的${safeType}通知，请确认并放行。`;
         }
 
-        // 凭据与链接
+        // 公司官网
         let linkHTML = '';
-        if (safeMeeting.startsWith('http://') || safeMeeting.startsWith('https://')) {
-            linkHTML = `<a href="${escapeHTML(safeMeeting)}" target="_blank" class="review-link-pill" onclick="event.stopPropagation()">🔗 官网/入口 ↗</a>`;
-        } else if (safeMeeting) {
-            linkHTML = `<span class="review-deadline-bubble" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E;" onclick="event.stopPropagation();navigator.clipboard.writeText('${escapeHTML(safeMeeting)}');showAdminToast('已复制凭据', '${escapeHTML(safeMeeting)}');">🔑 ${escapeHTML(safeMeeting)} ⎘</span>`;
-        }
+        if (safeMeeting) linkHTML = `<a href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer" class="review-link-pill" onclick="event.stopPropagation()">公司官网 ↗</a>`;
 
         const isTimeScheduled = safeTime !== '待定' && safeTime !== '';
         const timeHTML = isTimeScheduled
@@ -1406,12 +1593,9 @@ function renderReviews(stages) {
             <div class="review-card" id="review-card-${stage.id}" onclick="openReviewDetailDrawer('${stage.id}')">
                 <div class="review-card-header">
                     <div class="review-card-company-group">
-                        <div class="review-card-avatar" style="background:${avatarBg};">
-                            ${avatarInitial}
-                        </div>
                         <div class="review-card-title-group">
                             <div class="review-card-name-row">
-                                <span class="review-card-name">${safeCompany}</span>
+                                ${companyNameHTML}
                                 ${safeDept ? `<span class="dept-pill" style="font-size:0.68rem;padding:1px 5px;">${safeDept}</span>` : ''}
                             </div>
                             <span class="review-card-job" title="${safePosition}">${safePosition}</span>
@@ -1471,8 +1655,7 @@ function renderIgnoredReviews(stages) {
         const safeCompany = escapeHTML(app.company || '未知企业');
         const safePosition = escapeHTML(app.position || stage.raw_subject || '无主题');
         const safeType = escapeHTML(stage.stage_name || '环节');
-        const avatarBg = getCompanyColor(app.company);
-        const avatarInitial = getCompanyInitial(app.company);
+        const companyNameHTML = renderCompanyName(app, safeCompany, 'review-card-name');
 
         let timeStr = '未知';
         if (stage.created_at) {
@@ -1486,11 +1669,8 @@ function renderIgnoredReviews(stages) {
             <div class="review-card card-ignored" id="ignored-card-${stage.id}">
                 <div class="review-card-header">
                     <div class="review-card-company-group">
-                        <div class="review-card-avatar" style="background:${avatarBg}; opacity:0.8;">
-                            ${avatarInitial}
-                        </div>
                         <div class="review-card-title-group">
-                            <span class="review-card-name">${safeCompany}</span>
+                            ${companyNameHTML}
                             <span class="review-card-job" title="${safePosition}">${safePosition}</span>
                         </div>
                     </div>
@@ -1528,10 +1708,9 @@ function openReviewDetailDrawer(stageId) {
     const safePosition = escapeHTML(app.position || stage.raw_subject || '求职岗位');
     const safeType = escapeHTML(stage.stage_name || '环节');
     const safeNotes = escapeHTML(stage.notes || '');
-    const safeMeeting = (stage.meeting_info || '').trim();
+    const safeMeeting = normalizeWebsite(stage.meeting_info);
 
     const overlay = document.getElementById('review-detail-drawer-overlay');
-    const avatar = document.getElementById('review-drawer-avatar');
     const title = document.getElementById('review-drawer-title');
     const badge = document.getElementById('review-drawer-badge');
     const metaText = document.getElementById('review-drawer-meta-text');
@@ -1543,10 +1722,6 @@ function openReviewDetailDrawer(stageId) {
 
     if (!overlay) return;
 
-    if (avatar) {
-        avatar.style.background = getCompanyColor(app.company);
-        avatar.textContent = getCompanyInitial(app.company);
-    }
     if (title) title.textContent = `${safeCompany} · ${safeType}`;
     if (badge) {
         badge.className = `badge-tag ${meta.badgeClass}`;
@@ -1579,25 +1754,18 @@ function openReviewDetailDrawer(stageId) {
         snippetCard.textContent = stage.raw_subject ? `邮件主题：《${stage.raw_subject}》\n\n正文关键摘要：已成功由云端 DeepSeek AI 解析为 ${safeCompany} 的${safeType}通知。` : '暂无详细邮件原文片段。';
     }
 
-    // 3. 凭据与链接
+    // 3. 公司官网
     if (credsGroup) {
         let credsHTML = '';
-        if (safeMeeting.startsWith('http://') || safeMeeting.startsWith('https://')) {
+        if (safeMeeting) {
             credsHTML += `
                 <div style="display:flex;align-items:center;justify-content:space-between;background:#EEF2FF;border:1px solid #C7D2FE;padding:10px 14px;border-radius:8px;">
-                    <span style="font-size:0.84rem;color:#4338CA;">🔗 <strong>官网直达/作答入口:</strong> ${escapeHTML(safeMeeting)}</span>
-                    <a href="${escapeHTML(safeMeeting)}" target="_blank" class="review-link-pill">打开 ↗</a>
-                </div>
-            `;
-        } else if (safeMeeting) {
-            credsHTML += `
-                <div style="display:flex;align-items:center;justify-content:space-between;background:#FFFBEB;border:1px solid #FDE68A;padding:10px 14px;border-radius:8px;">
-                    <span style="font-size:0.84rem;color:#92400E;">🔑 <strong>会议号/考试凭据:</strong> ${escapeHTML(safeMeeting)}</span>
-                    <button class="review-copy-btn" onclick="navigator.clipboard.writeText('${escapeHTML(safeMeeting)}');showAdminToast('已复制凭据', '${escapeHTML(safeMeeting)}');">复制 ⎘</button>
+                    <span style="font-size:0.84rem;color:#4338CA;"><strong>公司官网:</strong> ${escapeHTML(safeMeeting)}</span>
+                    <a href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer" class="review-link-pill">打开 ↗</a>
                 </div>
             `;
         } else {
-            credsHTML = '<div style="font-size:0.8rem;color:#94A3B8;">无需额外会议号或考试凭据</div>';
+            credsHTML = '<div style="font-size:0.8rem;color:#94A3B8;">暂未记录公司官网</div>';
         }
         credsGroup.innerHTML = credsHTML;
     }
@@ -1864,6 +2032,10 @@ function openManualStageModal(targetAppId) {
     if (typeInput) typeInput.value = '';
     if (timeInput) timeInput.value = '';
     if (notesInput) notesInput.value = '';
+    if (notesInput && targetAppId) {
+        const app = allApplications.find(item => item.id === targetAppId);
+        notesInput.value = getCompanyWebsite(app);
+    }
     if (nextExpInput) nextExpInput.value = '';
     if (msgEl) msgEl.textContent = '';
 
@@ -1915,7 +2087,7 @@ async function submitManualStage() {
     const jobSubject = (document.getElementById('manual-job-subject')?.value || '').trim();
     const stageType = (document.getElementById('manual-stage-type')?.value || '').trim();
     const stageTime = (document.getElementById('manual-stage-time')?.value || '').trim();
-    const stageNotes = (document.getElementById('manual-stage-notes')?.value || '').trim();
+    const websiteInput = (document.getElementById('manual-stage-notes')?.value || '').trim();
     const nextExp = (document.getElementById('manual-next-exp')?.value || '').trim();
     const statusRadio = document.querySelector('input[name="manual-status"]:checked');
     const initialStatus = statusRadio ? statusRadio.value : 'approved';
@@ -1933,6 +2105,15 @@ async function submitManualStage() {
     if (!stageType) {
         if (msgEl) {
             msgEl.textContent = '⚠️ 请填写或点击选择推进环节名称';
+            msgEl.style.color = '#ef4444';
+        }
+        return;
+    }
+
+    const companyWebsite = normalizeWebsite(websiteInput);
+    if (websiteInput && !companyWebsite) {
+        if (msgEl) {
+            msgEl.textContent = '⚠️ 公司官网必须是有效的网址，例如 https://www.example.com';
             msgEl.style.color = '#ef4444';
         }
         return;
@@ -2022,9 +2203,9 @@ async function submitManualStage() {
             stage_name: stageType,
             stage_status: stageTargetStatus,
             schedule_time: stageTime || '待定',
-            meeting_info: stageNotes || '',
+            meeting_info: companyWebsite,
             next_expectation: nextExp || '',
-            notes: stageNotes || '',
+            notes: '',
             raw_subject: jobSubject || `${compName} - ${stageType}`,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -2099,7 +2280,7 @@ function openEditStageModal(stageId) {
         r.checked = (r.value === currentStatus);
     });
 
-    // 填充约定时间与凭据
+    // 填充约定时间与公司官网
     document.getElementById('edit-schedule-time').value = stage.schedule_time || '';
     document.getElementById('edit-meeting-info').value = stage.meeting_info || '';
     document.getElementById('edit-next-expectation').value = stage.next_expectation || '';
@@ -2169,6 +2350,15 @@ async function submitEditStage() {
         return;
     }
 
+    const companyWebsite = normalizeWebsite(meetingInfo);
+    if (meetingInfo && !companyWebsite) {
+        if (msgEl) {
+            msgEl.textContent = '⚠️ 公司官网必须是有效的网址，例如 https://www.example.com';
+            msgEl.style.color = '#ef4444';
+        }
+        return;
+    }
+
     if (saveBtn) {
         saveBtn.disabled = true;
         saveBtn.textContent = '正在保存修改...';
@@ -2210,7 +2400,7 @@ async function submitEditStage() {
                     stage_name: stageName,
                     stage_status: stageDbStatus,
                     schedule_time: scheduleTime || '待定',
-                    meeting_info: meetingInfo || '',
+                    meeting_info: companyWebsite,
                     next_expectation: nextExp || '',
                     notes: notes || '',
                     updated_at: new Date().toISOString()
@@ -2280,4 +2470,3 @@ async function deleteStageDirectly() {
         alert(`删除失败: ${err.message}`);
     }
 }
-
