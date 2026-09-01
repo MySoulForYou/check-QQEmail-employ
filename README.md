@@ -116,6 +116,7 @@
 ```sql
 -- 1. 清理旧表 (全新部署时执行)
 DROP TABLE IF EXISTS tasks CASCADE;
+DROP TABLE IF EXISTS job_opportunities CASCADE;
 DROP TABLE IF EXISTS application_stages CASCADE;
 DROP TABLE IF EXISTS applications CASCADE;
 DROP TABLE IF EXISTS sync_state CASCADE;
@@ -141,7 +142,7 @@ CREATE TABLE application_stages (
     stage_name TEXT NOT NULL,
     stage_status TEXT DEFAULT 'pending', -- pending(待审) | scheduled(待办) | awaiting_result(待结果) | passed(通过) | failed(未通过) | ignored(忽略)
     schedule_time TEXT DEFAULT '待定',
-    meeting_info TEXT DEFAULT '',
+    meeting_info TEXT DEFAULT '', -- 兼容历史列名，当前 Web 端仅保存公司官网 URL
     next_expectation TEXT DEFAULT '',
     raw_email_id TEXT DEFAULT '', -- 邮件 UID 幂等防重
     raw_subject TEXT DEFAULT '',
@@ -150,7 +151,28 @@ CREATE TABLE application_stages (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. 创建增量同步书签表 (初始化从最近 10 天开始扫描)
+-- 4. 创建招聘需求收藏表 (与投递记录关联，当前仅支持人工录入)
+CREATE TABLE job_opportunities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    application_id UUID REFERENCES applications(id) ON DELETE SET NULL,
+    company TEXT NOT NULL,
+    department TEXT DEFAULT '',
+    position TEXT NOT NULL,
+    job_code TEXT DEFAULT '',
+    location TEXT DEFAULT '',
+    recruitment_type TEXT DEFAULT '',
+    published_at TEXT DEFAULT '',
+    deadline TEXT DEFAULT '',
+    responsibilities TEXT DEFAULT '',
+    requirements TEXT DEFAULT '',
+    source_url TEXT DEFAULT '',
+    content_hash TEXT DEFAULT '',
+    status TEXT DEFAULT 'saved',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. 创建增量同步书签表 (初始化从最近 10 天开始扫描)
 CREATE TABLE sync_state (
     key TEXT PRIMARY KEY,
     last_uid BIGINT DEFAULT 0,
@@ -158,23 +180,31 @@ CREATE TABLE sync_state (
 );
 INSERT INTO sync_state (key, last_uid) VALUES ('email_sync', 0);
 
--- 5. 创建高性能索引
+-- 6. 创建高性能索引
 CREATE INDEX idx_stages_app_seq ON application_stages(application_id, seq DESC);
 CREATE INDEX idx_stages_status ON application_stages(stage_status);
 CREATE INDEX idx_app_company ON applications(company, department, position);
+CREATE UNIQUE INDEX idx_job_opportunities_source_url ON job_opportunities(source_url) WHERE source_url <> '';
+CREATE INDEX idx_job_opportunities_application ON job_opportunities(application_id);
+CREATE INDEX idx_job_opportunities_company_position ON job_opportunities(company, position);
 
--- 6. 开启 WebSocket Realtime 实时全端推流
+-- 7. 开启 WebSocket Realtime 实时全端推流
 ALTER PUBLICATION supabase_realtime ADD TABLE applications;
 ALTER PUBLICATION supabase_realtime ADD TABLE application_stages;
+ALTER PUBLICATION supabase_realtime ADD TABLE job_opportunities;
 
--- 7. 开启 RLS 行级安全策略 (保障公网公开访问安全)
+-- 8. 开启 RLS 行级安全策略 (保障公网公开访问安全)
 ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE application_stages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE job_opportunities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_state ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public all applications" ON applications FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all application_stages" ON application_stages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all job opportunities" ON job_opportunities FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read sync_state" ON sync_state FOR ALL USING (true) WITH CHECK (true);
 ```
+
+> 已经部署过 OfferPilot 的用户不需要重新建库或删除数据。只需在 Supabase SQL Editor 中执行 [`supabase/job_opportunities.sql`](supabase/job_opportunities.sql)，即可增量增加招聘要求表、索引、RLS 策略与 Realtime 配置。
 
 * 进入项目 **Project Settings ➡️ API**，复制以下 3 个核心凭证：
   * **Project URL**（如 `https://xxxx.supabase.co`）
@@ -268,7 +298,10 @@ Windows 端专为大屏求职管理打造，支持 **“免安装独立 EXE 运�
 3. 点击 **【⚡️ 保存并立即连接】**，云端数据秒级呈现并开启 Realtime 实时推流！
 
 ### 3. 🎮 核心功能与使用方式
-* **宽屏全景看板**：在大屏幕上尽享 **2 列白瓷求职卡片流、4 大 Bento 待办指标与右侧全景时间线抽屉**；
+* **宽屏全景看板**：通过响应式求职列表、4 大 Bento 待办指标与右侧全景时间线抽屉统一查看投递状态；
+* **双面板职位档案**：在公司时间线右上角点击 **【招聘要求】**，从左侧展开独立职位详情面板，窄屏下自动切换为覆盖式面板；
+* **人工录入招聘要求**：点击 **【人工录入】** 填写职位编号、地点、招聘类型、职责、任职要求与可选原始网址，保存后通过 `application_id` 与当前投递关联；当前版本不会自动抓取招聘网页，也不会使用 AI 提取招聘要求；
+* **公司官网直达**：为求职环节保存官网后，公司名称与档案中的官网按钮均可直接打开原始网站；非网址内容不会作为官网使用；
 * **邮件审核大厅**：进入“邮件待审准入”大厅，AI 智能提炼的笔面试通知一键审核放行或修改；
 * **一键开关控制**：关闭弹出的命令行窗口即可完全停止服务；或双击 `scripts/toggle_windows.bat` 实现一键智能开/关！
 
@@ -330,6 +363,7 @@ Windows 端专为大屏求职管理打造，支持 **“免安装独立 EXE 运�
 │   └── android/                  # 🤖 完整的 Android Studio Gradle 原生工程
 │
 ├── ☁️ cloud/                      # 【云端抓取服务】
+│   ├── normalization.py          # AI 字段规范化与官网 URL 校验
 │   └── worker.py                 # 云端邮件提取与 DeepSeek AI 解析引擎 (由 GitHub Actions 调用)
 │
 ├── 💻 client/                     # 【客户端与本地 Web 服务】
@@ -348,6 +382,12 @@ Windows 端专为大屏求职管理打造，支持 **“免安装独立 EXE 运�
 │
 ├── 📖 docs/                       # 【设计文档与切图】
 │   └── assets/                   # 产品演示图、架构图与 App 图标
+│
+├── 🗄️ supabase/                   # 【数据库增量迁移脚本】
+│   └── job_opportunities.sql     # 招聘要求人工录入表、索引、RLS 与 Realtime 配置
+│
+├── 🧪 tests/                      # 【自动化回归测试】
+│   └── test_worker_normalization.py # 岗位、环节与官网字段规范化测试
 │
 ├── .github/workflows/
 │   └── sync.yml                  # ☁️ GitHub Actions 自动化定时工作流

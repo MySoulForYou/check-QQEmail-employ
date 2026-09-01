@@ -9,6 +9,11 @@ from datetime import datetime
 import logging
 import httpx
 from openai import OpenAI
+try:
+    from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_stage_name
+except ModuleNotFoundError:
+    # 兼容直接执行 `python cloud/worker.py` 的本地启动方式。
+    from normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_stage_name
 
 # 配置日志输出格式
 logging.basicConfig(
@@ -168,10 +173,10 @@ class CloudSyncWorker:
 2. 如果相关，提取以下关键要素：
    - company: 企业标准名称（统一提炼为规范全称或通用简称，如：腾讯、阿里巴巴、网易、字节跳动、小红书、美团、中科芯等）
    - department: 所属部门/事业群/业务线（如：微信事业群 WXG、淘天集团、多媒体技术部、雷火工作室、飞书；若邮件无明确部门则留空字符 ""）
-   - position: 投递岗位名称（如：Product Engineer-产品工程师、后台开发工程师、2027届算法实习生、前端开发）
-   - stage_name: 精炼环节名称（严格控制在2~6个字，如：网申提交、综合测评、在线笔试、AI面试、技术一面、业务二面、总监终面、HR沟通、正式Offer等）
+   - position: 仅提取邮件中明确出现的具体投递岗位名称（如：Product Engineer-产品工程师、后台开发工程师、2027届算法实习生、前端开发）。严禁把招聘专业范围、招聘项目名称、邮件标题或任职资格当作岗位；邮件未明确岗位时固定返回“未指定岗位”
+   - stage_name: 仅提取当前正在发生的一个客观环节，严格控制在2~6个字（如：网申提交、综合测评、在线笔试、AI面试、技术一面、业务二面、总监终面、HR沟通、正式Offer等）。不要合并多个环节，例如不要返回“宣讲会及笔试”；若邮件实际通知参加笔试，应返回“在线笔试”
    - schedule_time: 面试/笔试约定时间（格式如：2026-08-25 14:00 或 待定）
-   - meeting_info: 腾讯会议号/Zoom链接/考试平台账号密码/地点（无则留空）
+   - meeting_info: 公司官方主页或官方招聘网站 URL。只允许返回 http:// 或 https:// 开头的网址；不要返回会议号、考试入口、账号密码或地点，无明确官网则留空
    - next_expectation: 客观严谨的本轮流转与等待预期（如：等待笔试结果、等待测评结果、等待一面结果、等待二面结果、等待正式Offer邮件、流程结束等）
    - notes: 关键备注与注意事项（如双机位要求、自备简历等，无则留空）
    - urgent: 布尔值（如果是48小时内的面试/笔试，则为 true，否则为 false）
@@ -187,7 +192,7 @@ class CloudSyncWorker:
     "position": "岗位全称",
     "stage_name": "环节名称",
     "schedule_time": "时间",
-    "meeting_info": "会议号/链接/凭据",
+    "meeting_info": "https://公司官网地址",
     "next_expectation": "本轮等待预期",
     "notes": "备注/注意事项",
     "urgent": false
@@ -223,10 +228,10 @@ class CloudSyncWorker:
         try:
             company = (ai_data.get("company") or "其他/未识别公司").strip()
             department = (ai_data.get("department") or "").strip()
-            position = (ai_data.get("position") or raw_subject or "校招应聘岗位").strip()
-            stage_name = (ai_data.get("stage_name") or "求职通知").strip()
+            position = normalize_extracted_position(ai_data.get("position"))
+            stage_name = normalize_extracted_stage_name(ai_data.get("stage_name"))
             schedule_time = (ai_data.get("schedule_time") or "待定").strip()
-            meeting_info = (ai_data.get("meeting_info") or "").strip()
+            meeting_info = normalize_company_website(ai_data.get("meeting_info"))
             next_exp = (ai_data.get("next_expectation") or "").strip()
             notes = (ai_data.get("notes") or "").strip()
 
