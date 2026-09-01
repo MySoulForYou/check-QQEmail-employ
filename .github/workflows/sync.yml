@@ -2,8 +2,11 @@ name: Recruitment Email Sync
 
 on:
   schedule:
-    # 每天北京时间 08:00 ~ 22:30 每 30 分钟自动运行一次 (UTC 00:00 ~ 14:30)
-    - cron: '*/30 0-14 * * *'
+    # 每天北京时间 07:00 ~ 23:45 每 15 分钟自动运行一次
+    # UTC 23:00 对应次日北京时间 07:00；UTC 00:00 ~ 15:45 对应北京时间 08:00 ~ 23:45
+    - cron: '*/15 0-15,23 * * *'
+    # 每天北京时间 00:00 再执行当天最后一轮 (UTC 16:00)
+    - cron: '0 16 * * *'
   # 支持在 GitHub 网页上手动点击 "Run workflow" 一键触发测试
   workflow_dispatch:
 
@@ -40,4 +43,3 @@ jobs:
           DEEPSEEK_MODEL: ${{ secrets.DEEPSEEK_MODEL || vars.DEEPSEEK_MODEL }}
         run: |
           python cloud/worker.py
-
