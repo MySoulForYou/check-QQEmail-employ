@@ -2,11 +2,9 @@ name: Recruitment Email Sync
 
 on:
   schedule:
-    # GitHub 的定时任务可能延迟或丢失，因此在北京时间 07:03 ~ 23:58
-    # 每 5 分钟错峰尝试一次，避开大量工作流集中的 00/15/30/45 分钟。
-    # UTC 23:03 ~ 23:58 对应次日北京时间 07:03 ~ 07:58；
-    # UTC 00:03 ~ 15:58 对应北京时间 08:03 ~ 23:58。
-    - cron: '3-58/5 0-15,23 * * *'
+    # GitHub 的定时任务可能延迟或丢失，因此避开常见的
+    # 00/15/30/45 分钟高峰，在北京时间 07:07 ~ 23:52 每 15 分钟错峰执行。
+    - cron: '7,22,37,52 0-15,23 * * *'
     # 每天北京时间 00:00 再执行当天最后一轮（UTC 16:00）。
     - cron: '0 16 * * *'
   # 支持在 GitHub 网页上手动点击 "Run workflow" 一键触发测试
@@ -33,7 +31,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install beautifulsoup4 openai httpx
+          pip install -r requirements-worker.txt
 
       - name: Run Cloud Sync Worker
         env:

@@ -46,6 +46,49 @@ function renderCompanyName(app, safeCompany, className) {
     return `<a class="${className} company-website-link" href="${escapeHTML(website)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="打开公司官网">${safeCompany}</a>`;
 }
 
+function openOriginalEmail(rawSubject, company, event) {
+    if (event) {
+        event.stopPropagation();
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+    }
+    const query = (rawSubject || '').trim() || (company ? `${company} 招聘` : '招聘');
+
+    // 1. 自动写入剪贴板
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(query).catch(() => {});
+        } else {
+            const textArea = document.createElement('textarea');
+            textArea.value = query;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand('copy');
+            textArea.remove();
+        }
+    } catch (_) {}
+
+    // 2. 识别用户首选邮箱平台并打开
+    let mailUrl = 'https://mail.qq.com/';
+    try {
+        const customMail = localStorage.getItem('offerpilot-preferred-mail') || 'qq';
+        if (customMail === '163') mailUrl = 'https://mail.163.com/';
+        else if (customMail === 'gmail') mailUrl = `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(query)}`;
+        else if (customMail === 'exmail') mailUrl = 'https://exmail.qq.com/';
+        else if (customMail === 'outlook') mailUrl = 'https://outlook.live.com/mail/0/';
+    } catch (_) {}
+
+    window.open(mailUrl, '_blank', 'noopener,noreferrer');
+
+    // 3. 弹出 Toast 提示
+    if (typeof showAdminToast === 'function') {
+        const previewText = query.length > 22 ? query.slice(0, 22) + '...' : query;
+        showAdminToast('已打开邮箱并复制主题', `已复制「${previewText}」，在邮箱搜索栏 ⌘V 粘贴即可直达`);
+    }
+}
+
 let supabase = null;
 let realtimeChannelApps = null;
 let realtimeChannelStages = null;
@@ -432,7 +475,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
-    setupSidebarCollapse();
+    setupAutoPeekSidebar();
+    setupGlobalKeyboardShortcuts();
 
     // 1. 侧边栏主视图切换 (求职全景看板 vs 邮件待审准入)
     const navItems = document.querySelectorAll('.sidebar-nav-item, .nav-tab');
@@ -616,31 +660,104 @@ function setupEventListeners() {
     if (btnSaveModal) btnSaveModal.addEventListener('click', saveSettings);
 }
 
-function setupSidebarCollapse() {
-    const sidebar = document.querySelector('.app-sidebar');
-    const toggle = document.getElementById('sidebar-collapse-toggle');
-    if (!sidebar || !toggle) return;
+function setupAutoPeekSidebar() {
+    const wrap = document.getElementById('app-sidebar-wrap');
+    const pinBtn = document.getElementById('btn-sidebar-pin');
+    if (!wrap) return;
 
-    let collapsed = false;
+    let isPinned = false;
     try {
-        collapsed = localStorage.getItem('offerpilot-sidebar-collapsed') === 'true';
+        isPinned = localStorage.getItem('offerpilot-sidebar-pinned') === 'true';
     } catch (_) {}
 
-    const applyState = () => {
-        sidebar.classList.toggle('is-collapsed', collapsed);
-        toggle.setAttribute('aria-expanded', String(!collapsed));
-        toggle.setAttribute('aria-label', collapsed ? '展开侧栏' : '收起侧栏');
-        toggle.title = collapsed ? '展开侧栏' : '收起侧栏';
+    const applyPinState = (notify = false) => {
+        wrap.classList.toggle('is-pinned', isPinned);
+        if (pinBtn) {
+            pinBtn.classList.toggle('is-active', isPinned);
+            pinBtn.setAttribute('aria-pressed', String(isPinned));
+            pinBtn.setAttribute('title', isPinned ? '恢复悬停自感应 Dock (Cmd+B)' : '锁定侧边栏常驻展开 (Cmd+B)');
+        }
+        try {
+            localStorage.setItem('offerpilot-sidebar-pinned', String(isPinned));
+        } catch (_) {}
+
+        if (notify && typeof showAdminToast === 'function') {
+            if (isPinned) {
+                showAdminToast('已锁定侧边栏常驻', '可按 Cmd+B 随时恢复悬停自感应 Dock');
+            } else {
+                showAdminToast('已切换为悬停自感应 Dock', '鼠标靠近左侧自动浮现，主屏宽幅沉浸');
+            }
+        }
     };
 
-    applyState();
+    window.toggleSidebarPinMode = function (forceState) {
+        if (typeof forceState === 'boolean') {
+            isPinned = forceState;
+        } else {
+            isPinned = !isPinned;
+        }
+        applyPinState(true);
+    };
 
-    toggle.addEventListener('click', () => {
-        collapsed = !collapsed;
-        applyState();
-        try {
-            localStorage.setItem('offerpilot-sidebar-collapsed', String(collapsed));
-        } catch (_) {}
+    applyPinState(false);
+
+    if (pinBtn) {
+        pinBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.toggleSidebarPinMode();
+        });
+    }
+}
+
+function setupGlobalKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        const isEditing = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || (document.activeElement && document.activeElement.isContentEditable);
+
+        // 1. Cmd + B / Ctrl + B: 切换侧边栏 锁定常驻 / 悬停自感应 Dock 模式
+        if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
+            e.preventDefault();
+            if (typeof window.toggleSidebarPinMode === 'function') {
+                window.toggleSidebarPinMode();
+            }
+            return;
+        }
+
+        // 如果用户正在文本输入框内打字，不触发全局单键快捷键
+        if (isEditing) return;
+
+        // 2. Cmd + N 或 单按 N: 快速唤起手动建档推进弹窗
+        if ((e.key === 'n' || e.key === 'N') && !e.altKey && !e.ctrlKey) {
+            e.preventDefault();
+            if (typeof openManualStageModal === 'function') {
+                openManualStageModal('');
+            }
+            return;
+        }
+
+        // 3. 数字键 1: 切换到「求职全景看板」
+        if (e.key === '1' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            const btn = document.getElementById('nav-item-dashboard');
+            if (btn) btn.click();
+            return;
+        }
+
+        // 4. 数字键 2: 切换到「求职日历」
+        if (e.key === '2' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            const btn = document.getElementById('nav-item-calendar');
+            if (btn) btn.click();
+            return;
+        }
+
+        // 5. 数字键 3: 切换到「邮件待审准入」
+        if (e.key === '3' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            const btn = document.getElementById('nav-item-review');
+            if (btn) btn.click();
+            return;
+        }
     });
 }
 
@@ -726,6 +843,11 @@ async function saveSettings() {
             localStorage.setItem('supabase_url', url);
             localStorage.setItem('supabase_key', key);
 
+            const mailSelect = document.getElementById('admin-cfg-mail-type');
+            if (mailSelect) {
+                localStorage.setItem('offerpilot-preferred-mail', mailSelect.value);
+            }
+
             if (window.APP_CONFIG) {
                 window.APP_CONFIG.SUPABASE_URL = url;
                 window.APP_CONFIG.SUPABASE_ANON_KEY = key;
@@ -757,6 +879,10 @@ async function saveSettings() {
 
 function showConfigModal() {
     const modal = document.getElementById('admin-setup-modal');
+    const mailSelect = document.getElementById('admin-cfg-mail-type');
+    if (mailSelect) {
+        mailSelect.value = localStorage.getItem('offerpilot-preferred-mail') || 'qq';
+    }
     if (modal) modal.style.display = 'flex';
 }
 
@@ -859,8 +985,9 @@ async function loadAllData() {
         if (badgeSub) badgeSub.textContent = reviewStages.length;
         if (ignoredBadge) ignoredBadge.textContent = ignoredStages.length;
 
-        // 刷新渲染 4 大 KPI 数据卡、全景看板与审核大厅
+        // 刷新渲染 4 大 KPI 数据卡、紧急通报栏、全景看板与审核大厅
         updateKPICards();
+        renderUrgentBanner();
         renderDashboard();
         renderCalendar();
         renderReviews(reviewStages);
@@ -893,11 +1020,11 @@ function getStageProgressCategory(app, latestStage) {
         return 'written_test';
     }
 
-    if (name.includes('测评') || name.includes('性格') || name.includes('认知') || name.includes('综合测') || name.includes('心理测试') || (name.includes('测试') && !name.includes('笔试'))) {
+    if (name.includes('测评') || name.includes('综合测评') || name.includes('性格测试') || name.includes('认知能力') || name.includes('AI面试') || name.includes('AI测评')) {
         return 'assessment';
     }
 
-    if (name.includes('面') || name.includes('初试') || name.includes('复试') || name.includes('终审') || name.includes('加试') || name.includes('主管面')) {
+    if (name.includes('面试') || name.includes('一面') || name.includes('二面') || name.includes('三面') || name.includes('终面') || name.includes('HR') || name.includes('技术面') || name.includes('业务面') || name.includes('群面')) {
         return 'interview';
     }
 
@@ -946,6 +1073,144 @@ function updateKPICards() {
     if (activeStagesEl) activeStagesEl.textContent = todoCount;
     if (waitingResultsEl) waitingResultsEl.textContent = waitingResultsCount;
     if (offerCountEl) offerCountEl.textContent = offerCount;
+}
+
+// ==========================================================================
+// 7.5 渲染顶部呼吸感紧急待办通报栏 (Urgent Action Banner)
+// ==========================================================================
+function renderUrgentBanner() {
+    const banner = document.getElementById('urgent-action-banner');
+    if (!banner) return;
+
+    // 1. 提取所有待办环节 (stage_status === 'scheduled')
+    const scheduledStages = allStages.filter(s => s.stage_status === 'scheduled');
+    
+    // 2. 匹配应用并计算时间
+    const now = new Date();
+    const todayStr = formatCalendarKey(now);
+    const tomorrow = new Date(now.getTime() + 86400000);
+    const tomorrowStr = formatCalendarKey(tomorrow);
+
+    const urgentItems = scheduledStages.map(stage => {
+        const app = allApplications.find(a => a.id === stage.application_id);
+        if (!app) return null;
+
+        const date = parseScheduleDate(stage.schedule_time);
+        let timeLabel = stage.schedule_time || '待定时间';
+        let isToday = false;
+        let isTomorrow = false;
+        let isOverdue = false;
+        let urgencyScore = 9999999999999;
+
+        if (date) {
+            const diffMs = date.getTime() - now.getTime();
+            urgencyScore = date.getTime();
+            const dateKey = formatCalendarKey(date);
+            const timePart = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+
+            if (dateKey === todayStr) {
+                isToday = true;
+                const hoursLeft = Math.round(diffMs / (1000 * 3600));
+                if (diffMs < 0) {
+                    timeLabel = `⚠️ 今日已到期 · ${timePart}`;
+                    isOverdue = true;
+                } else if (hoursLeft <= 1) {
+                    timeLabel = `🔥 今日 ${timePart} · 1小时内开始`;
+                } else {
+                    timeLabel = `🔥 今日 ${timePart} · 倒计时 ${hoursLeft}小时`;
+                }
+            } else if (dateKey === tomorrowStr) {
+                isTomorrow = true;
+                timeLabel = `⏳ 明天 ${timePart}`;
+            } else {
+                timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+            }
+        } else {
+            urgencyScore = now.getTime() + 86400000 * 30;
+            timeLabel = '⏳ 时间待定 · 待推进';
+        }
+
+        return { stage, app, date, timeLabel, isToday, isTomorrow, isOverdue, urgencyScore };
+    }).filter(Boolean).sort((a, b) => a.urgencyScore - b.urgencyScore);
+
+    if (urgentItems.length === 0) {
+        banner.style.display = 'block';
+        banner.innerHTML = `
+            <div class="urgent-banner-peaceful">
+                <div class="peaceful-left">
+                    <span class="peaceful-icon">☕</span>
+                    <span class="peaceful-text">近期 48 小时暂无紧要笔面试日程，状态良好，从容备战！</span>
+                </div>
+                <div class="peaceful-right">
+                    <button class="btn-urgent-create" onclick="openManualStageModal()">＋ 推进新环节</button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    banner.style.display = 'block';
+    banner.innerHTML = `
+        <div class="urgent-banner-box">
+            <div class="urgent-banner-header">
+                <div class="urgent-header-title-group">
+                    <span class="urgent-pulse-indicator" aria-hidden="true"></span>
+                    <span class="urgent-header-title">⚡ 近期紧要待办</span>
+                    <span class="urgent-counter-pill">${urgentItems.length} 项日程</span>
+                </div>
+                <button type="button" class="btn-urgent-cal-link" onclick="document.getElementById('nav-item-calendar')?.click()">
+                    📅 查看完整求职日历 ➔
+                </button>
+            </div>
+            <div class="urgent-cards-scroll">
+                ${urgentItems.map(item => {
+                    const { stage, app, timeLabel, isToday, isTomorrow, isOverdue } = item;
+                    const meta = getStageStatusMeta(stage, app);
+                    const safeCompany = escapeHTML(app.company || '未知企业');
+                    const safeDept = app.department ? escapeHTML(app.department) : '';
+                    const safePos = escapeHTML(app.position || '求职岗位');
+                    const safeStage = escapeHTML(stage.stage_name || '待办环节');
+                    const safeWebsite = getCompanyWebsite(app);
+
+                    let cardBadgeClass = 'pill-amber';
+                    if (isToday) cardBadgeClass = 'pill-rose';
+                    else if (isTomorrow) cardBadgeClass = 'pill-indigo';
+
+                    const isInvite = safeStage.includes('邀请') || safeStage.includes('宣讲') || safeStage.includes('夏令营');
+                    const finishBtnLabel = isInvite ? '✓ 标为已投递' : '✓ 标为已参加';
+
+                    return `
+                        <div class="urgent-item-card ${isToday ? 'is-today' : ''}" onclick="openTimelineDrawer('${app.id}')">
+                            <div class="urgent-item-header">
+                                <div class="urgent-item-comp-row">
+                                    <strong class="urgent-item-company">${safeCompany}</strong>
+                                    ${safeDept ? `<span class="urgent-item-dept">${safeDept}</span>` : ''}
+                                </div>
+                                <span class="urgent-stage-pill ${meta.badgeClass}">${meta.icon} ${safeStage}</span>
+                            </div>
+                            <div class="urgent-item-pos" title="${safePos}">${safePos}</div>
+                            <div class="urgent-item-timerow">
+                                <span class="urgent-time-badge ${cardBadgeClass}">${timeLabel}</span>
+                            </div>
+                            <div class="urgent-item-actions" onclick="event.stopPropagation()">
+                                <button type="button" class="btn-urgent-action btn-urgent-email" onclick="openOriginalEmail('${escapeHTML(stage.raw_subject || '')}', '${safeCompany}', event)" title="快速打开邮箱查找此邮件原件（自动复制主题）">
+                                    ✉️ 查邮件
+                                </button>
+                                ${safeWebsite ? `
+                                    <a class="btn-urgent-action btn-urgent-site" href="${escapeHTML(safeWebsite)}" target="_blank" rel="noopener noreferrer" title="前往公司官方招聘网站">
+                                        🌐 官网 ↗
+                                    </a>
+                                ` : ''}
+                                <button type="button" class="btn-urgent-action btn-urgent-done" onclick="advanceStageStatus('${stage.id}', 'awaiting_result', '${app.id}')" title="标记已参加/已完成并等待下一轮结果">
+                                    ${finishBtnLabel}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
 }
 
 // ==========================================================================
@@ -1280,12 +1545,16 @@ function openTimelineDrawer(appId) {
                             </div>
                         </div>
 
-                        ${safeMeeting ? `
-                            <div class="timeline-notes-box" style="margin-top:8px;">
-                                <span><strong>公司官网</strong><small>已关联当前职位来源</small></span>
-                                <a class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:0.75rem;" href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer">打开 ↗</a>
-                            </div>
-                        ` : ''}
+                        <div class="timeline-links-row" style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                            <button type="button" class="btn-email-link" onclick="openOriginalEmail('${escapeHTML(s.raw_subject || '')}', '${escapeHTML(app.company || '')}', event)" title="在邮箱中查找此邮件原件（自动复制主题并跳转邮箱）">
+                                ✉️ 邮箱原件 ↗
+                            </button>
+                            ${safeMeeting ? `
+                                <a class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.75rem;border-radius:var(--radius-full);" href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer">
+                                    🌐 公司官网 ↗
+                                </a>
+                            ` : ''}
+                        </div>
 
                         ${safeNotes ? `
                             <div class="timeline-notes-box" style="margin-top:6px;background:#F8FAFC;">
@@ -1699,9 +1968,10 @@ function renderReviews(stages) {
             aiSummary = `DeepSeek AI 提取：已识别为「${safeCompany}」的${safeType}通知，请确认并放行。`;
         }
 
-        // 公司官网
+        // 公司官网与邮箱直达
         let linkHTML = '';
         if (safeMeeting) linkHTML = `<a href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer" class="review-link-pill" onclick="event.stopPropagation()">公司官网 ↗</a>`;
+        const emailLinkHTML = `<button type="button" class="review-email-pill" onclick="openOriginalEmail('${escapeHTML(stage.raw_subject || '')}', '${safeCompany}', event)" title="在邮箱中查找此邮件原件（自动复制主题并跳转邮箱）">✉️ 邮箱原件 ↗</button>`;
 
         const isTimeScheduled = safeTime !== '待定' && safeTime !== '';
         const timeHTML = isTimeScheduled
@@ -1732,6 +2002,7 @@ function renderReviews(stages) {
 
                 <div class="review-card-meta-row">
                     ${timeHTML}
+                    ${emailLinkHTML}
                     ${linkHTML}
                 </div>
 
@@ -1803,6 +2074,12 @@ function renderIgnoredReviews(stages) {
                     </div>
                 </div>
 
+                <div class="review-card-meta-row" style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+                    <button type="button" class="review-email-pill" onclick="openOriginalEmail('${escapeHTML(stage.raw_subject || '')}', '${safeCompany}', event)" title="在邮箱中查找此邮件原件（自动复制主题并跳转邮箱）">
+                        ✉️ 邮箱原件 ↗
+                    </button>
+                </div>
+
                 <div class="review-card-actions">
                     <button class="btn-card-restore" onclick="restoreIgnoredStage('${stage.id}', 'pending')" title="恢复并重新放回待审核大厅">
                         ↩ 恢复至待审
@@ -1870,7 +2147,14 @@ function openReviewDetailDrawer(stageId) {
 
     // 2. 邮件原文提取片段
     if (snippetCard) {
-        snippetCard.textContent = stage.raw_subject ? `邮件主题：《${stage.raw_subject}》\n\n正文关键摘要：已成功由云端 DeepSeek AI 解析为 ${safeCompany} 的${safeType}通知。` : '暂无详细邮件原文片段。';
+        const rawSub = stage.raw_subject ? escapeHTML(stage.raw_subject) : '';
+        snippetCard.innerHTML = rawSub ? `
+            <div style="font-weight:700;color:var(--text-main);margin-bottom:6px;">邮件主题：《${rawSub}》</div>
+            <div style="color:var(--text-muted);margin-bottom:10px;">正文关键摘要：已成功由云端 DeepSeek AI 解析为 ${safeCompany} 的${safeType}通知。</div>
+            <button type="button" class="btn-email-link" onclick="openOriginalEmail('${escapeHTML(stage.raw_subject || '')}', '${safeCompany}', event)" title="在邮箱中定位原邮件（自动复制主题并跳转邮箱）">
+                ✉️ 打开网页邮箱定位原件 ↗
+            </button>
+        ` : '<div style="color:var(--text-muted);">暂无详细邮件原文片段。</div>';
     }
 
     // 3. 公司官网
