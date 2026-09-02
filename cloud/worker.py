@@ -164,30 +164,75 @@ class CloudSyncWorker:
         except Exception as e:
             logging.error(f"❌ 更新 sync_state 异常: {e}")
 
-    def parse_with_ai(self, subject, body):
-        """使用 DeepSeek AI 提取邮件结构化信息 (标准 ATS 投递与环节模型)"""
-        prompt = f"""
-你是一个招聘信息与求职进度提取专家。请阅读下面的邮件主题和内容。
+    def get_active_applications(self):
+        """从 Supabase 动态查询当前所有活跃投递单 (overall_status=active)，用于注入 AI 上下文做智能路线匹配"""
+        try:
+            resp = httpx.get(
+                f"{self.supabase_url}/rest/v1/applications?overall_status=eq.active&select=id,company,department,position,current_stage_name&order=updated_at.desc",
+                headers=self.sb_headers,
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                return resp.json() or []
+            logging.warning(f"⚠️ 查询活跃投递单响应状态异常: {resp.status_code}")
+            return []
+        except Exception as e:
+            logging.error(f"❌ 读取活跃投递单异常: {e}")
+            return []
 
-任务：
-1. 判断该邮件是否与“招聘、面试、笔试、测评、Offer、录取、入职、简历投递、资料补充、感谢信/流程结束”等求职全流程相关。
+    def parse_with_ai(self, subject, body, active_apps=None):
+        """使用 DeepSeek AI 结合活跃档案上下文提取结构化信息并进行求职路线归属研判"""
+        if active_apps is None:
+            active_apps = self.get_active_applications()
+
+        if active_apps:
+            apps_lines = []
+            for idx, app in enumerate(active_apps, 1):
+                dept = f" · {app.get('department')}" if app.get('department') else ""
+                pos = app.get('position') or '未指定岗位'
+                stage = app.get('current_stage_name') or '未定义'
+                apps_lines.append(f"{idx}. [ID: {app['id']}] {app.get('company')}{dept} · {pos} (当前进展: {stage})")
+            active_apps_text = "\n".join(apps_lines)
+        else:
+            active_apps_text = "（当前系统暂无活跃投递单）"
+
+        prompt = f"""
+你是一个智能 ATS（求职跟踪与招聘信息解析）专家。请阅读下面的邮件主题和内容，并结合用户当前的求职档案智能判定邮件归属与生命周期推进。
+
+【用户当前正在推进的活跃求职档案清单】：
+{active_apps_text}
+
+--------------------------------------------------
+【待解析的新邮件】：
+- 邮件主题: {subject}
+- 邮件内容摘要:
+{body[:3000]}
+--------------------------------------------------
+
+【核心任务】：
+1. 判断该邮件是否与“招聘、面试、笔试、测评、Offer、录取、入职、简历投递、资料补充、感谢信/流程结束”等求职全流程相关。若不相关直接返回 is_recruitment: false。
 2. 如果相关，提取以下关键要素：
-   - company: 企业标准名称（统一提炼为规范全称或通用简称，如：腾讯、阿里巴巴、网易、字节跳动、小红书、美团、中科芯等）
-   - department: 所属部门/事业群/业务线（如：微信事业群 WXG、淘天集团、多媒体技术部、雷火工作室、飞书；若邮件无明确部门则留空字符 ""）
-   - position: 仅提取邮件中明确出现的具体投递岗位名称（如：Product Engineer-产品工程师、后台开发工程师、2027届算法实习生、前端开发）。严禁把招聘专业范围、招聘项目名称、邮件标题或任职资格当作岗位；邮件未明确岗位时固定返回“未指定岗位”
-   - stage_name: 仅提取当前正在发生的一个客观环节，严格控制在2~6个字（如：网申提交、综合测评、在线笔试、AI面试、技术一面、业务二面、总监终面、HR沟通、正式Offer等）。不要合并多个环节，例如不要返回“宣讲会及笔试”；若邮件实际通知参加笔试，应返回“在线笔试”
-   - schedule_time: 面试/笔试约定时间（格式如：2026-08-25 14:00 或 待定）
-   - meeting_info: 公司官方主页或官方招聘网站 URL。只允许返回 http:// 或 https:// 开头的网址；不要返回会议号、考试入口、账号密码或地点，无明确官网则留空
-   - next_expectation: 客观严谨的本轮流转与等待预期（如：等待笔试结果、等待测评结果、等待一面结果、等待二面结果、等待正式Offer邮件、流程结束等）
+   - company: 企业规范全称或通用简称（如：腾讯、美团、字节跳动、阿里巴巴、拼多多等，自动统一商业别名与发件主体）
+   - department: 所属部门/事业群/业务线（如：微信事业群 WXG、淘天集团、多媒体技术部；若邮件无明确部门则留空字符 ""）
+   - position: 仅提取邮件中明确出现的具体投递岗位名称（如：前端开发工程师、后台研发、算法实习生）。严禁把招聘专业范围、招聘项目名称、邮件标题或任职资格当作岗位；邮件未明确岗位时固定返回“未指定岗位”
+   - stage_name: 仅提取当前正在发生的一个客观环节，严格控制在2~6个字（如：综合测评、在线笔试、AI面试、技术一面、业务二面、总监终面、HR沟通、正式Offer等）
+   - schedule_time: 面试/笔试约定时间或截止时间（格式如：2026-09-05 14:00 或 待定）
+   - meeting_info: 公司官方主页或官方招聘网站 URL（只允许返回 http:// 或 https:// 开头的网址，无则留空）
+   - next_expectation: 客观严谨的本轮流转与等待预期（如：等待一面结果、等待笔试结果、等待正式Offer邮件、流程结束等）
    - notes: 关键备注与注意事项（如双机位要求、自备简历等，无则留空）
    - urgent: 布尔值（如果是48小时内的面试/笔试，则为 true，否则为 false）
 
-邮件主题: {subject}
-邮件内容摘要: {body[:3000]}
+3. 🌟【求职路线归属研判 (Route Matching)】：
+   请对比新邮件与【活跃求职档案清单】：
+   - 规则 A (归并追加)：如果新邮件与已有某个投递单属于同一企业，且属于相同/相近岗位（如“前端开发”与“Web前端研发”）、或新邮件未注明岗位但该企业在库中只有唯一一个活跃投递，判定为同一路线推进，请直接返回该投递单对应的 matched_application_id（如："uuid-1"）；
+   - 规则 B (同公司不同岗位隔离)：如果同一企业下用户投递了多个不同岗位（如前端 vs 产品），新邮件明确属于其中某一个岗位，请精准匹配该岗位的 ID；
+   - 规则 C (全新投递单)：如果属于全新企业，或属于该企业下全新且互不相干的独立新岗位，请返回 matched_application_id 为 null。
 
 请严格按以下 JSON 格式返回，不要输出任何其他说明文字：
 {{
     "is_recruitment": true,
+    "matched_application_id": "匹配到的投递单UUID字符串，若为新投递则为 null",
+    "match_reason": "简要说明匹配归属或新建理由",
     "company": "企业名称",
     "department": "部门/事业群",
     "position": "岗位全称",
@@ -204,7 +249,7 @@ class CloudSyncWorker:
             response = self.ai_client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "你是一个招聘助手，只负责精准提取和识别招聘类邮件及其流转状态。"},
+                    {"role": "system", "content": "你是一个智能招聘助手，只负责精准提取和识别招聘类邮件及其流转状态，并智能识别求职路线归属。"},
                     {"role": "user", "content": prompt}
                 ],
                 response_format={"type": "json_object"}
@@ -218,7 +263,9 @@ class CloudSyncWorker:
                 text = text.split("```")[1].split("```")[0].strip()
 
             result = json.loads(text)
-            logging.info(f"✅ AI 解析结果: 公司={result.get('company')}, 部门={result.get('department')}, 岗位={result.get('position')}, 环节={result.get('stage_name')}, 时间={result.get('schedule_time')}")
+            matched_id = result.get("matched_application_id")
+            reason = result.get("match_reason") or "无"
+            logging.info(f"✅ AI 解析结果: 公司={result.get('company')}, 岗位={result.get('position')}, 环节={result.get('stage_name')}, 匹配路线ID={matched_id} (理由: {reason})")
             return result
         except Exception as e:
             logging.error(f"❌ AI 解析异常: {e}")
@@ -235,6 +282,7 @@ class CloudSyncWorker:
             meeting_info = normalize_company_website(ai_data.get("meeting_info"))
             next_exp = (ai_data.get("next_expectation") or "").strip()
             notes = (ai_data.get("notes") or "").strip()
+            matched_app_id = ai_data.get("matched_application_id")
 
             # 1. 幂等检查：检查该 raw_email_id 是否已经入库过
             if raw_email_id:
@@ -244,63 +292,67 @@ class CloudSyncWorker:
                     logging.info(f"⏭️ 邮件 UID {raw_email_id} 已存在，跳过重复写入")
                     return True
 
-            # 2. 查询是否已存在对应的投递单 (Applications)
-            # 岗位明确时按 company + position 精确匹配；岗位缺失时按 company
-            # 回退查询，仅在该公司只有一条活跃投递时自动归属。
-            if position == "未指定岗位":
-                query_url = (
-                    f"{self.supabase_url}/rest/v1/applications"
-                    f"?company=eq.{quote(company, safe='')}"
-                    f"&overall_status=eq.active"
-                    f"&select=id,current_stage_name,position"
-                )
-            else:
-                query_url = (
-                    f"{self.supabase_url}/rest/v1/applications"
-                    f"?company=eq.{quote(company, safe='')}"
-                    f"&position=eq.{quote(position, safe='')}"
-                    f"&overall_status=eq.active"
-                    f"&select=id,current_stage_name,position"
-                )
-                if department:
-                    query_url += f"&department=eq.{quote(department, safe='')}"
-
-            resp_app = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
+            # 2. 匹配已有投递单 (Applications)
             app_id = None
             matched_app = None
 
-            if resp_app.status_code == 200:
-                candidates = resp_app.json()
-                if position != "未指定岗位" and candidates:
-                    matched_app = candidates[0]
-                elif position == "未指定岗位" and len(candidates) == 1:
-                    matched_app = candidates[0]
+            # 优先 2.1：使用 AI 上下文决策返回的 matched_application_id
+            if matched_app_id and str(matched_app_id).strip().lower() not in ["null", "none", ""]:
+                chk_app_url = f"{self.supabase_url}/rest/v1/applications?id=eq.{quote(str(matched_app_id), safe='')}&select=id,company,position,current_stage_name"
+                resp_chk_app = httpx.get(chk_app_url, headers=self.sb_headers, timeout=10.0)
+                if resp_chk_app.status_code == 200 and resp_chk_app.json():
+                    matched_app = resp_chk_app.json()[0]
                     logging.info(
-                        f"📎 邮件未注明岗位，自动归属到该公司唯一活跃投递: "
-                        f"[{company}] {matched_app.get('position', '未指定岗位')}"
+                        f"🧠 AI 智能研判匹配成功: [{matched_app.get('company')}] "
+                        f"{matched_app.get('position')} (理由: {ai_data.get('match_reason', '同一求职路线')})"
                     )
-                elif position == "未指定岗位" and len(candidates) > 1:
-                    # 多条明确岗位并存时不能猜测归属；若已有“未指定岗位”
-                    # 投递则继续复用，避免每封模糊邮件都创建一条新投递。
-                    unspecified_apps = [
-                        app for app in candidates
-                        if app.get("position") == "未指定岗位"
-                    ]
-                    if len(unspecified_apps) == 1:
-                        matched_app = unspecified_apps[0]
-                        logging.info(f"📎 复用 [{company}] 已有的未指定岗位投递单")
-                    else:
-                        logging.warning(
-                            f"⚠️ [{company}] 存在 {len(candidates)} 条活跃投递，"
-                            "邮件又未注明岗位，无法安全自动归属"
+
+            # 兜底 2.2：若 AI 未返回 matched_id（或返回为 null），进行安全数据库回退匹配
+            if not matched_app:
+                if position == "未指定岗位":
+                    query_url = (
+                        f"{self.supabase_url}/rest/v1/applications"
+                        f"?company=eq.{quote(company, safe='')}"
+                        f"&overall_status=eq.active"
+                        f"&select=id,current_stage_name,position"
+                    )
+                else:
+                    query_url = (
+                        f"{self.supabase_url}/rest/v1/applications"
+                        f"?company=eq.{quote(company, safe='')}"
+                        f"&position=eq.{quote(position, safe='')}"
+                        f"&overall_status=eq.active"
+                        f"&select=id,current_stage_name,position"
+                    )
+                    if department:
+                        query_url += f"&department=eq.{quote(department, safe='')}"
+
+                resp_app = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
+                if resp_app.status_code == 200:
+                    candidates = resp_app.json()
+                    if position != "未指定岗位" and candidates:
+                        matched_app = candidates[0]
+                    elif position == "未指定岗位" and len(candidates) == 1:
+                        matched_app = candidates[0]
+                        logging.info(
+                            f"📎 邮件未注明岗位，自动归属到该公司唯一活跃投递: "
+                            f"[{company}] {matched_app.get('position', '未指定岗位')}"
                         )
+                    elif position == "未指定岗位" and len(candidates) > 1:
+                        unspecified_apps = [
+                            app for app in candidates
+                            if app.get("position") == "未指定岗位"
+                        ]
+                        if len(unspecified_apps) == 1:
+                            matched_app = unspecified_apps[0]
+                            logging.info(f"📎 复用 [{company}] 已有的未指定岗位投递单")
 
             if matched_app:
                 # 复用已有投递单
                 app_data = matched_app
                 app_id = app_data["id"]
                 logging.info(
-                    f"📂 匹配到已有投递单: [{company}] "
+                    f"📂 关联到投递单: [{company}] "
                     f"{app_data.get('position', position)} (ID: {app_id})"
                 )
 
