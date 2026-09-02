@@ -809,7 +809,10 @@ async function loadAllData() {
         const badgeSub = document.getElementById('review-badge-sub');
         const ignoredBadge = document.getElementById('ignored-badge');
 
-        if (badge) badge.textContent = reviewStages.length;
+        if (badge) {
+            badge.textContent = reviewStages.length;
+            badge.style.display = reviewStages.length > 0 ? '' : 'none';
+        }
         if (badgeSub) badgeSub.textContent = reviewStages.length;
         if (ignoredBadge) ignoredBadge.textContent = ignoredStages.length;
 
@@ -1522,7 +1525,10 @@ function renderReviews(stages) {
 
     const totalCount = stages.length;
     if (badgeSub) badgeSub.textContent = totalCount;
-    if (badgeMain) badgeMain.textContent = totalCount;
+    if (badgeMain) {
+        badgeMain.textContent = totalCount;
+        badgeMain.style.display = totalCount > 0 ? '' : 'none';
+    }
 
     if (batchBtn) {
         batchBtn.style.display = totalCount > 1 ? 'inline-flex' : 'none';

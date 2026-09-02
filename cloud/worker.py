@@ -244,19 +244,64 @@ class CloudSyncWorker:
                     return True
 
             # 2. 查询是否已存在对应的投递单 (Applications)
-            # 匹配规则: company + position + overall_status='active' (若有 department 也一并精准匹配)
-            query_url = f"{self.supabase_url}/rest/v1/applications?company=eq.{company}&position=eq.{position}&overall_status=eq.active&select=id,current_stage_name"
-            if department:
-                query_url += f"&department=eq.{department}"
+            # 岗位明确时按 company + position 精确匹配；岗位缺失时按 company
+            # 回退查询，仅在该公司只有一条活跃投递时自动归属。
+            if position == "未指定岗位":
+                query_url = (
+                    f"{self.supabase_url}/rest/v1/applications"
+                    f"?company=eq.{company}"
+                    f"&overall_status=eq.active"
+                    f"&select=id,current_stage_name,position"
+                )
+            else:
+                query_url = (
+                    f"{self.supabase_url}/rest/v1/applications"
+                    f"?company=eq.{company}"
+                    f"&position=eq.{position}"
+                    f"&overall_status=eq.active"
+                    f"&select=id,current_stage_name,position"
+                )
+                if department:
+                    query_url += f"&department=eq.{department}"
 
             resp_app = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
             app_id = None
+            matched_app = None
 
-            if resp_app.status_code == 200 and resp_app.json():
+            if resp_app.status_code == 200:
+                candidates = resp_app.json()
+                if position != "未指定岗位" and candidates:
+                    matched_app = candidates[0]
+                elif position == "未指定岗位" and len(candidates) == 1:
+                    matched_app = candidates[0]
+                    logging.info(
+                        f"📎 邮件未注明岗位，自动归属到该公司唯一活跃投递: "
+                        f"[{company}] {matched_app.get('position', '未指定岗位')}"
+                    )
+                elif position == "未指定岗位" and len(candidates) > 1:
+                    # 多条明确岗位并存时不能猜测归属；若已有“未指定岗位”
+                    # 投递则继续复用，避免每封模糊邮件都创建一条新投递。
+                    unspecified_apps = [
+                        app for app in candidates
+                        if app.get("position") == "未指定岗位"
+                    ]
+                    if len(unspecified_apps) == 1:
+                        matched_app = unspecified_apps[0]
+                        logging.info(f"📎 复用 [{company}] 已有的未指定岗位投递单")
+                    else:
+                        logging.warning(
+                            f"⚠️ [{company}] 存在 {len(candidates)} 条活跃投递，"
+                            "邮件又未注明岗位，无法安全自动归属"
+                        )
+
+            if matched_app:
                 # 复用已有投递单
-                app_data = resp_app.json()[0]
+                app_data = matched_app
                 app_id = app_data["id"]
-                logging.info(f"📂 匹配到已有投递单: [{company}] {position} (ID: {app_id})")
+                logging.info(
+                    f"📂 匹配到已有投递单: [{company}] "
+                    f"{app_data.get('position', position)} (ID: {app_id})"
+                )
 
                 # 更新主表最新环节快照与更新时间
                 update_url = f"{self.supabase_url}/rest/v1/applications?id=eq.{app_id}"
