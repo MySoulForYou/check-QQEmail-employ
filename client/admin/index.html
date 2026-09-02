@@ -9,58 +9,69 @@
 <body>
     <div class="app-workspace">
         <!-- ==================== 1. 左侧极简任务栏 (Lean Sidebar) ==================== -->
-        <aside class="app-sidebar">
-            <!-- 品牌标识 (纯粹利落，无交通灯) -->
-            <div class="sidebar-brand">
-                <div class="brand-logo">
-                    <span class="brand-sparkle">✦</span>
-                    <span class="brand-name">OfferPilot</span>
-                    <span class="brand-tag">ATS</span>
-                </div>
-            </div>
-
-            <!-- 全局高频核心动作按钮 -->
-            <div class="sidebar-action-wrap">
-                <button class="btn-sidebar-create" onclick="openManualStageModal('')" title="手动录入微信、电话邀约或新公司">
-                    <span class="btn-icon" aria-hidden="true">＋</span>
-                    <span>手动建档 / 推进</span>
-                </button>
-            </div>
-
-            <!-- 核心双大厅导航 (去重降噪) -->
-            <nav class="sidebar-nav">
-                <div class="sidebar-nav-section-title">核心大厅</div>
-                
-                <button class="sidebar-nav-item active" data-target="dashboard-view" id="nav-item-dashboard">
-                    <span class="nav-item-icon" aria-hidden="true">▦</span>
-                    <span class="nav-item-label">求职全景看板</span>
-                </button>
-
-                <button class="sidebar-nav-item" data-target="review-view" id="nav-item-review">
-                    <span class="nav-item-icon" aria-hidden="true">◇</span>
-                    <span class="nav-item-label">邮件待审准入</span>
-                    <span class="nav-badge-count" id="review-badge" style="display: none;"></span>
-                </button>
-            </nav>
-
-            <!-- 底部系统工具、设置与 Realtime 遥测 -->
-            <div class="sidebar-footer">
-                <button class="sidebar-tool-btn" id="btn-wake-widget" title="唤醒本地桌面透明挂件">
-                    <span class="tool-icon" aria-hidden="true">▣</span>
-                    <span>唤醒桌面透明挂件</span>
-                </button>
-
-                <div class="sidebar-status-card" id="admin-status-container" title="Supabase 云数据库实时连接通道">
-                    <div class="status-indicator-group">
-                        <span class="status-pulse-dot" id="admin-status-dot"></span>
-                        <span class="status-label" id="admin-status-text">云端 Realtime 已连接</span>
+        <!-- ==================== 1. 左侧极简任务栏 (Lean Sidebar Wrap & Auto-Peek Dock) ==================== -->
+        <div class="app-sidebar-wrap" id="app-sidebar-wrap">
+            <aside class="app-sidebar auto-peek" id="app-sidebar">
+                <!-- 品牌标识与图钉常驻锁定控制 -->
+                <div class="sidebar-brand">
+                    <div class="brand-logo">
+                        <span class="brand-sparkle">✦</span>
+                        <span class="brand-name">OfferPilot</span>
+                        <span class="brand-tag">ATS</span>
                     </div>
-                    <button class="btn-settings-gear" id="admin-settings-nav" title="配置 Supabase 云数据库">
-                        设置
+                    <button class="btn-sidebar-pin" id="btn-sidebar-pin" type="button" aria-label="锁定侧边栏常驻展开" title="锁定常驻 / 悬停自感应切换 (Cmd+B)">
+                        <span class="pin-icon" aria-hidden="true">📌</span>
                     </button>
                 </div>
-            </div>
-        </aside>
+
+                <!-- 全局高频核心动作按钮 -->
+                <div class="sidebar-action-wrap">
+                    <button class="btn-sidebar-create" onclick="openManualStageModal('')" title="手动录入微信、电话邀约或新公司 (快捷键 N)">
+                        <span class="btn-icon" aria-hidden="true">＋</span>
+                        <span>手动建档 / 推进</span>
+                    </button>
+                </div>
+
+                <!-- 核心双大厅导航 (去重降噪) -->
+                <nav class="sidebar-nav">
+                    <div class="sidebar-nav-section-title">核心大厅</div>
+                    
+                    <button class="sidebar-nav-item active" data-target="dashboard-view" id="nav-item-dashboard" title="求职全景看板 (快捷键 1)">
+                        <span class="nav-item-icon" aria-hidden="true">▦</span>
+                        <span class="nav-item-label">求职全景看板</span>
+                    </button>
+
+                    <button class="sidebar-nav-item" data-target="calendar-view" id="nav-item-calendar" title="求职日历 (快捷键 2)">
+                        <span class="nav-item-icon" aria-hidden="true">□</span>
+                        <span class="nav-item-label">求职日历</span>
+                    </button>
+
+                    <button class="sidebar-nav-item" data-target="review-view" id="nav-item-review" title="邮件待审准入 (快捷键 3)">
+                        <span class="nav-item-icon" aria-hidden="true">◇</span>
+                        <span class="nav-item-label">邮件待审准入</span>
+                        <span class="nav-badge-count" id="review-badge" style="display: none;"></span>
+                    </button>
+                </nav>
+
+                <!-- 底部系统工具、设置与 Realtime 遥测 -->
+                <div class="sidebar-footer">
+                    <button class="sidebar-tool-btn" id="btn-wake-widget" title="唤醒本地桌面透明挂件">
+                        <span class="tool-icon" aria-hidden="true">▣</span>
+                        <span>唤醒桌面透明挂件</span>
+                    </button>
+
+                    <div class="sidebar-status-card" id="admin-status-container" title="Supabase 云数据库实时连接通道">
+                        <div class="status-indicator-group">
+                            <span class="status-pulse-dot" id="admin-status-dot"></span>
+                            <span class="status-label" id="admin-status-text">云端 Realtime 已连接</span>
+                        </div>
+                        <button class="btn-settings-gear" id="admin-settings-nav" title="配置 Supabase 云数据库">
+                            设置
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
 
         <!-- ==================== 2. 右侧主工作台区域 (Main Content) ==================== -->
         <main class="app-main">
@@ -85,6 +96,11 @@
                         </button>
                     </div>
                 </header>
+
+                <!-- ⚡ 呼吸感紧急待办通报栏 (Urgent Action Banner) -->
+                <div class="urgent-action-banner" id="urgent-action-banner" style="display:none;">
+                    <!-- 动态注入待办卡片或空状态提示 -->
+                </div>
 
                 <!-- 顶部 4 大 Bento 瓷感 KPI 指标卡 (待办/结果客观状态维度) -->
                 <div class="bento-metrics-grid">
@@ -154,11 +170,10 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th style="width: 260px;">投递企业 / 岗位</th>
-                                <th style="min-width: 320px;">求职推进链路 (PIPELINE STEPPER)</th>
-                                <th style="width: 260px;">最新客观流转状态</th>
-                                <th style="width: 150px;">约定/通知时间</th>
-                                <th style="width: 120px; text-align: right;">全景档案</th>
+                                <th style="width: 25%;">企业与岗位</th>
+                                <th style="width: 35%;">求职进度</th>
+                                <th style="width: 25%;">当前状态</th>
+                                <th style="width: 15%;">约定时间</th>
                             </tr>
                         </thead>
                         <tbody id="dashboard-tbody">
@@ -168,7 +183,32 @@
                 </div>
             </section>
 
-            <!-- 视图 2：新邮件待审大厅 (Review Gatekeeper View - Option A Apple Card Grid) -->
+            <section id="calendar-view" class="view-panel">
+                <header class="main-topbar">
+                    <div class="topbar-title-group">
+                        <h1 class="main-page-title">求职日历</h1>
+                        <p class="main-page-desc">集中查看测评、笔试、面试与截止时间</p>
+                    </div>
+                    <div class="calendar-month-actions">
+                        <button type="button" class="calendar-nav-btn" onclick="changeCalendarMonth(-1)" title="上个月">‹</button>
+                        <strong id="calendar-month-title"></strong>
+                        <button type="button" class="calendar-nav-btn" onclick="changeCalendarMonth(1)" title="下个月">›</button>
+                        <button type="button" class="calendar-today-btn" onclick="goToCalendarToday()">今天</button>
+                    </div>
+                </header>
+                <div class="calendar-workspace">
+                    <div class="calendar-card">
+                        <div class="calendar-weekdays"><span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span><span>周六</span><span>周日</span></div>
+                        <div class="calendar-grid" id="calendar-grid"></div>
+                    </div>
+                    <aside class="calendar-agenda">
+                        <div class="calendar-agenda-head"><h2>当日事项</h2><span id="calendar-selected-date"></span></div>
+                        <div class="calendar-agenda-list" id="calendar-agenda-list"></div>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- 视图 3：新邮件待审大厅 (Review Gatekeeper View - Option A Apple Card Grid) -->
             <section id="review-view" class="view-panel">
                 <header class="main-topbar">
                     <div class="topbar-title-group">
@@ -529,6 +569,16 @@
                     <div class="form-item">
                         <label>Anon Public Key (公开公钥)</label>
                         <input type="password" id="admin-cfg-key" placeholder="sb_publishable_..." spellcheck="false" />
+                    </div>
+                    <div class="form-item">
+                        <label>常用邮箱服务（点击「邮箱原件」直达）</label>
+                        <select id="admin-cfg-mail-type" class="form-select" style="width:100%;height:38px;padding:0 10px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);background:var(--bg-card);font-size:0.85rem;color:var(--text-main);">
+                            <option value="qq">QQ 邮箱 (mail.qq.com)</option>
+                            <option value="163">网易 163 邮箱 (mail.163.com)</option>
+                            <option value="exmail">腾讯企业邮 / 企业微信 (exmail.qq.com)</option>
+                            <option value="gmail">Google Gmail (原生参数搜索直达)</option>
+                            <option value="outlook">微软 Outlook / Hotmail</option>
+                        </select>
                     </div>
                     <div id="admin-cfg-msg" class="cfg-status-message"></div>
                 </div>

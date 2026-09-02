@@ -117,7 +117,7 @@
             this.wsUrl = wsUrl;
             this.key = key;
             this.channelName = channelName;
-            this.callbacks = [];
+            this.subscriptions = [];
             this.statusCallbacks = [];
             this.ws = null;
             this.heartbeatTimer = null;
@@ -127,7 +127,7 @@
 
         on(type, filter, callback) {
             if (type === 'postgres_changes') {
-                this.callbacks.push(callback);
+                this.subscriptions.push({ filter: filter || {}, callback });
             }
             return this;
         }
@@ -155,7 +155,7 @@
                         const msg = JSON.parse(event.data);
                         if (msg.event === 'postgres_changes' || (msg.event === 'phx_reply' && msg.payload?.status === 'ok')) {
                             if (msg.event === 'postgres_changes') {
-                                this.callbacks.forEach(cb => cb(msg.payload));
+                                this.subscriptions.forEach(({ callback }) => callback(msg.payload));
                             }
                         }
                     } catch (e) {
@@ -186,7 +186,11 @@
                 event: 'phx_join',
                 payload: {
                     config: {
-                        postgres_changes: [{ event: '*', schema: 'public', table: 'tasks' }]
+                        postgres_changes: this.subscriptions.map(({ filter }) => ({
+                            event: filter.event || '*',
+                            schema: filter.schema || 'public',
+                            ...(filter.table ? { table: filter.table } : {})
+                        }))
                     }
                 },
                 ref: String(this.refCounter++)

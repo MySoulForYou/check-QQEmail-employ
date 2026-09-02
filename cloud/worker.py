@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import logging
 import httpx
+from urllib.parse import quote
 from openai import OpenAI
 try:
     from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_stage_name
@@ -237,7 +238,7 @@ class CloudSyncWorker:
 
             # 1. 幂等检查：检查该 raw_email_id 是否已经入库过
             if raw_email_id:
-                check_url = f"{self.supabase_url}/rest/v1/application_stages?raw_email_id=eq.{raw_email_id}&select=id"
+                check_url = f"{self.supabase_url}/rest/v1/application_stages?raw_email_id=eq.{quote(str(raw_email_id), safe='')}&select=id"
                 resp_chk = httpx.get(check_url, headers=self.sb_headers, timeout=10.0)
                 if resp_chk.status_code == 200 and resp_chk.json():
                     logging.info(f"⏭️ 邮件 UID {raw_email_id} 已存在，跳过重复写入")
@@ -249,20 +250,20 @@ class CloudSyncWorker:
             if position == "未指定岗位":
                 query_url = (
                     f"{self.supabase_url}/rest/v1/applications"
-                    f"?company=eq.{company}"
+                    f"?company=eq.{quote(company, safe='')}"
                     f"&overall_status=eq.active"
                     f"&select=id,current_stage_name,position"
                 )
             else:
                 query_url = (
                     f"{self.supabase_url}/rest/v1/applications"
-                    f"?company=eq.{company}"
-                    f"&position=eq.{position}"
+                    f"?company=eq.{quote(company, safe='')}"
+                    f"&position=eq.{quote(position, safe='')}"
                     f"&overall_status=eq.active"
                     f"&select=id,current_stage_name,position"
                 )
                 if department:
-                    query_url += f"&department=eq.{department}"
+                    query_url += f"&department=eq.{quote(department, safe='')}"
 
             resp_app = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
             app_id = None
@@ -305,7 +306,7 @@ class CloudSyncWorker:
 
                 # 更新主表最新环节快照与更新时间
                 update_url = f"{self.supabase_url}/rest/v1/applications?id=eq.{app_id}"
-                httpx.patch(
+                resp_update = httpx.patch(
                     update_url,
                     headers=self.sb_headers,
                     json={
@@ -314,6 +315,9 @@ class CloudSyncWorker:
                     },
                     timeout=10.0
                 )
+                if resp_update.status_code not in [200, 204]:
+                    logging.error(f"❌ 更新投递主表失败: {resp_update.status_code}, {resp_update.text}")
+                    return False
             else:
                 # 新建投递单
                 headers_return = dict(self.sb_headers)
@@ -384,6 +388,16 @@ class CloudSyncWorker:
         except Exception as e:
             logging.error(f"❌ 写入主子表异常: {e}")
             return False
+
+    def process_ai_result(self, ai_result, raw_email_id, raw_subject):
+        """处理单封邮件的 AI 结果。
+
+        只有非招聘邮件或招聘邮件已成功入库时，才允许推进同步书签。
+        """
+        if not ai_result or not ai_result.get("is_recruitment"):
+            logging.info(f"⏭️ 忽略非招聘邮件: {raw_subject[:30]}...")
+            return True
+        return self.upsert_recruitment_event(ai_result, raw_email_id, raw_subject)
 
     def run(self):
         logging.info("🚀 ========================================")
@@ -463,11 +477,15 @@ class CloudSyncWorker:
             # 调用 AI 进行分析
             try:
                 ai_result = self.parse_with_ai(subject, body)
-                if ai_result and ai_result.get("is_recruitment"):
-                    if self.upsert_recruitment_event(ai_result, m_id_str, subject):
-                        new_tasks_count += 1
-                else:
-                    logging.info(f"⏭️ 忽略非招聘邮件: {subject[:30]}...")
+                is_recruitment = bool(ai_result and ai_result.get("is_recruitment"))
+                if not self.process_ai_result(ai_result, m_id_str, subject):
+                    logging.error(
+                        f"⚠️ 邮件 UID {m_id_str} 入库失败，停止推进书签，"
+                        "下次同步将重试该邮件"
+                    )
+                    break
+                if is_recruitment:
+                    new_tasks_count += 1
 
                 if current_uid_int > max_uid_in_batch:
                     max_uid_in_batch = current_uid_int

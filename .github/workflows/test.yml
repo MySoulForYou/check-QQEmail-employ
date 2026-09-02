@@ -1,0 +1,42 @@
+name: Project Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Test Dependencies
+        run: |
+          pip install -r requirements-worker.txt
+          pip install flask
+
+      - name: Run Python Tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run JavaScript Tests
+        run: node --test tests/*.cjs
+
+      - name: Check JavaScript Syntax
+        run: |
+          node --check client/admin/app.js
+          node --check client/admin/supabase.js
+          node --check client/widget/app.js
