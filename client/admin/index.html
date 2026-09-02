@@ -10,6 +10,10 @@
     <div class="app-workspace">
         <!-- ==================== 1. 左侧极简任务栏 (Lean Sidebar) ==================== -->
         <aside class="app-sidebar">
+            <button class="sidebar-collapse-toggle" id="sidebar-collapse-toggle" type="button" aria-label="收起侧栏" aria-expanded="true" title="收起侧栏">
+                <span aria-hidden="true">‹</span>
+            </button>
+
             <!-- 品牌标识 (纯粹利落，无交通灯) -->
             <div class="sidebar-brand">
                 <div class="brand-logo">
@@ -34,6 +38,11 @@
                 <button class="sidebar-nav-item active" data-target="dashboard-view" id="nav-item-dashboard">
                     <span class="nav-item-icon" aria-hidden="true">▦</span>
                     <span class="nav-item-label">求职全景看板</span>
+                </button>
+
+                <button class="sidebar-nav-item" data-target="calendar-view" id="nav-item-calendar">
+                    <span class="nav-item-icon" aria-hidden="true">□</span>
+                    <span class="nav-item-label">求职日历</span>
                 </button>
 
                 <button class="sidebar-nav-item" data-target="review-view" id="nav-item-review">
@@ -154,11 +163,10 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th style="width: 260px;">投递企业 / 岗位</th>
-                                <th style="min-width: 320px;">求职推进链路 (PIPELINE STEPPER)</th>
-                                <th style="width: 260px;">最新客观流转状态</th>
-                                <th style="width: 150px;">约定/通知时间</th>
-                                <th style="width: 120px; text-align: right;">全景档案</th>
+                                <th style="width: 25%;">企业与岗位</th>
+                                <th style="width: 35%;">求职进度</th>
+                                <th style="width: 25%;">当前状态</th>
+                                <th style="width: 15%;">约定时间</th>
                             </tr>
                         </thead>
                         <tbody id="dashboard-tbody">
@@ -168,7 +176,32 @@
                 </div>
             </section>
 
-            <!-- 视图 2：新邮件待审大厅 (Review Gatekeeper View - Option A Apple Card Grid) -->
+            <section id="calendar-view" class="view-panel">
+                <header class="main-topbar">
+                    <div class="topbar-title-group">
+                        <h1 class="main-page-title">求职日历</h1>
+                        <p class="main-page-desc">集中查看测评、笔试、面试与截止时间</p>
+                    </div>
+                    <div class="calendar-month-actions">
+                        <button type="button" class="calendar-nav-btn" onclick="changeCalendarMonth(-1)" title="上个月">‹</button>
+                        <strong id="calendar-month-title"></strong>
+                        <button type="button" class="calendar-nav-btn" onclick="changeCalendarMonth(1)" title="下个月">›</button>
+                        <button type="button" class="calendar-today-btn" onclick="goToCalendarToday()">今天</button>
+                    </div>
+                </header>
+                <div class="calendar-workspace">
+                    <div class="calendar-card">
+                        <div class="calendar-weekdays"><span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span><span>周六</span><span>周日</span></div>
+                        <div class="calendar-grid" id="calendar-grid"></div>
+                    </div>
+                    <aside class="calendar-agenda">
+                        <div class="calendar-agenda-head"><h2>当日事项</h2><span id="calendar-selected-date"></span></div>
+                        <div class="calendar-agenda-list" id="calendar-agenda-list"></div>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- 视图 3：新邮件待审大厅 (Review Gatekeeper View - Option A Apple Card Grid) -->
             <section id="review-view" class="view-panel">
                 <header class="main-topbar">
                     <div class="topbar-title-group">

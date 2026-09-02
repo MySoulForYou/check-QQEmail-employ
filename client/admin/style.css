@@ -84,7 +84,7 @@ body {
    1. 左侧极简任务栏 (Lean App Sidebar)
    ========================================================================== */
 .app-sidebar {
-    width: 250px;
+    width: 208px;
     flex-shrink: 0;
     background-color: var(--bg-sidebar);
     border-right: 1px solid var(--border-subtle);
@@ -95,6 +95,95 @@ body {
     height: 100vh;
     padding: 24px 16px;
     z-index: 50;
+    transition: width 0.2s ease, padding 0.2s ease;
+}
+
+.sidebar-collapse-toggle {
+    position: absolute;
+    top: 28px;
+    right: -14px;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 50%;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    box-shadow: var(--shadow-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+    transition: color 0.15s ease, box-shadow 0.15s ease, transform 0.2s ease;
+}
+
+.sidebar-collapse-toggle span {
+    font-size: 1.25rem;
+    line-height: 1;
+    transform: translateY(-1px);
+}
+
+.sidebar-collapse-toggle:hover {
+    color: var(--text-main);
+    box-shadow: var(--shadow-hover);
+}
+
+.app-sidebar.is-collapsed {
+    width: 72px;
+    padding-inline: 10px;
+}
+
+.app-sidebar.is-collapsed .sidebar-collapse-toggle {
+    transform: rotate(180deg);
+}
+
+.app-sidebar.is-collapsed .sidebar-brand {
+    padding-inline: 0;
+}
+
+.app-sidebar.is-collapsed .brand-logo,
+.app-sidebar.is-collapsed .sidebar-action-wrap,
+.app-sidebar.is-collapsed .sidebar-nav-item,
+.app-sidebar.is-collapsed .sidebar-status-card {
+    justify-content: center;
+}
+
+.app-sidebar.is-collapsed .brand-name,
+.app-sidebar.is-collapsed .brand-tag,
+.app-sidebar.is-collapsed .sidebar-nav-section-title,
+.app-sidebar.is-collapsed .nav-item-label,
+.app-sidebar.is-collapsed .btn-sidebar-create > span:last-child,
+.app-sidebar.is-collapsed .sidebar-tool-btn > span:last-child,
+.app-sidebar.is-collapsed .status-label {
+    display: none;
+}
+
+.app-sidebar.is-collapsed .btn-sidebar-create {
+    width: 40px;
+}
+
+.app-sidebar.is-collapsed .sidebar-nav-item {
+    padding-inline: 0;
+}
+
+.app-sidebar.is-collapsed .nav-badge-count {
+    position: absolute;
+    top: 5px;
+    right: 7px;
+    width: 7px;
+    min-width: 7px;
+    height: 7px;
+    padding: 0;
+    font-size: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-tool-btn {
+    padding-inline: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-status-card {
+    min-height: 34px;
+    gap: 4px;
 }
 
 /* 品牌区 (无交通灯) */
@@ -611,6 +700,10 @@ body {
     transition: background-color 0.15s ease;
 }
 
+.table-clickable-row {
+    cursor: pointer;
+}
+
 .data-table tbody tr:hover {
     background-color: var(--bg-hover);
 }
@@ -749,6 +842,12 @@ body {
 .badge-gold { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
 .badge-gray { background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0; }
 
+.dashboard-status-badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .time-text {
     font-size: 0.82rem;
     font-weight: 600;
@@ -759,27 +858,6 @@ body {
 .time-hint {
     font-size: 0.72rem;
     color: var(--text-sub);
-}
-
-.btn-row-action {
-    padding: 5px 12px;
-    background: #F1F5F9;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-full);
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #334155;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    transition: all 0.15s ease;
-}
-
-.btn-row-action:hover {
-    background: var(--brand-dark);
-    border-color: var(--brand-dark);
-    color: #FFFFFF;
 }
 
 /* ==========================================================================
@@ -2194,12 +2272,51 @@ body {
     color: var(--text-sub);
 }
 
+/* 求职日历 */
+.calendar-month-actions { display: flex; align-items: center; gap: 8px; }
+.calendar-month-actions strong { min-width: 108px; text-align: center; font-size: .9rem; }
+.calendar-nav-btn, .calendar-today-btn { height: 34px; border: 1px solid var(--border-subtle); background: var(--bg-card); color: var(--text-main); border-radius: var(--radius-full); cursor: pointer; font-weight: 700; }
+.calendar-nav-btn { width: 34px; font-size: 1.1rem; }
+.calendar-today-btn { padding: 0 14px; }
+.calendar-workspace { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(260px, .72fr); min-height: 610px; }
+.calendar-card { padding: 20px 24px 24px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg) 0 0 var(--radius-lg); box-shadow: var(--shadow-soft); }
+.calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-weekdays span { padding: 0 8px 10px; color: var(--text-sub); font-size: .72rem; font-weight: 700; }
+.calendar-day { min-width: 0; min-height: 82px; padding: 8px; text-align: left; border: 0; border-top: 1px solid var(--border-item); border-right: 1px solid var(--border-item); background: transparent; color: var(--text-main); cursor: pointer; }
+.calendar-day:nth-child(7n) { border-right: 0; }
+.calendar-day:hover { background: var(--bg-hover); }
+.calendar-day.is-outside { color: #CBD5E1; }
+.calendar-day.is-selected { background: #F3F0E9; border-radius: 12px; box-shadow: inset 0 0 0 1px #DDD6C9; }
+.calendar-day-number { display: inline-grid; place-items: center; width: 24px; height: 24px; font-size: .76rem; font-weight: 750; }
+.calendar-day.is-today .calendar-day-number { color: #fff; background: var(--brand-dark); border-radius: 50%; }
+.calendar-event { display: block; margin-top: 4px; padding: 3px 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-radius: 6px; font-size: .66rem; font-weight: 700; }
+.calendar-event-test, .calendar-event-waiting { color: #6B21A8; background: #FAF5FF; }
+.calendar-event-interview { color: #065F46; background: #ECFDF5; }
+.calendar-event-offer { color: #92400E; background: #FFFBEB; }
+.calendar-event-other, .calendar-event-archived { color: #475569; background: #F1F5F9; }
+.calendar-more { display: block; margin-top: 4px; color: var(--text-sub); font-size: .64rem; }
+.calendar-agenda { padding: 22px; border: 1px solid var(--border-subtle); border-left: 0; border-radius: 0 var(--radius-lg) var(--radius-lg) 0; background: #F8F5EF; }
+.calendar-agenda-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.calendar-agenda-head h2 { font-size: 1rem; }
+.calendar-agenda-head span { color: var(--text-muted); font-size: .74rem; }
+.calendar-agenda-list { display: grid; gap: 10px; margin-top: 18px; }
+.calendar-agenda-item { width: 100%; padding: 13px; text-align: left; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main); cursor: pointer; box-shadow: var(--shadow-sm); transition: transform .15s ease, box-shadow .15s ease; }
+.calendar-agenda-item:hover { transform: translateY(-1px); box-shadow: var(--shadow-hover); }
+.calendar-agenda-item strong, .calendar-agenda-item small { display: block; }
+.calendar-agenda-time { color: var(--text-muted); font-size: .68rem; font-weight: 700; }
+.calendar-agenda-item strong { margin-top: 4px; font-size: .82rem; }
+.calendar-agenda-item small { margin-top: 4px; color: var(--text-muted); font-size: .7rem; }
+.calendar-empty { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-sub); text-align: center; }
+.calendar-empty span { font-size: 1.5rem; }
+.calendar-empty strong { margin-top: 8px; color: var(--text-muted); font-size: .84rem; }
+.calendar-empty small { margin-top: 3px; font-size: .7rem; }
+
 /* ==========================================================================
    9. 响应式工作台：中窄窗口不压缩表格文字
    ========================================================================== */
 @media (max-width: 1280px) {
     .app-sidebar {
-        width: 210px;
+        width: 188px;
         padding-inline: 12px;
     }
 
@@ -2230,6 +2347,20 @@ body {
 }
 
 @media (max-width: 1120px) {
+    .calendar-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .calendar-card {
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+
+    .calendar-agenda {
+        border-left: 1px solid var(--border-subtle);
+        border-top: 0;
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+
     .table-card {
         overflow: visible;
         background: transparent;
@@ -2274,12 +2405,9 @@ body {
 
     .data-table td:nth-child(1),
     .data-table td:nth-child(2),
-    .data-table td:nth-child(3) {
+    .data-table td:nth-child(3),
+    .data-table td:nth-child(4) {
         grid-column: 1 / -1;
-    }
-
-    .data-table td:nth-child(5) {
-        text-align: right !important;
     }
 
     .comp-info,
@@ -2324,6 +2452,28 @@ body {
 }
 
 @media (max-width: 820px) {
+    .calendar-month-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .calendar-card {
+        padding: 14px 10px;
+    }
+
+    .calendar-day {
+        min-height: 66px;
+        padding: 5px;
+    }
+
+    .calendar-event {
+        width: 7px;
+        height: 7px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 0;
+    }
+
     .app-workspace {
         display: block;
     }

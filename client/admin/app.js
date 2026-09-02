@@ -59,6 +59,8 @@ let currentBentoFilter = 'all';       // 'all' | 'todo' | 'waiting' | 'offer' (�
 let currentProgressFilter = 'all';    // 'all' | 'assessment' | 'written_test' | 'interview' | 'offer' | 'terminated' (下层当前流程进度阶段)
 let currentSearchQuery = '';
 let currentReviewCategory = 'all';
+let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let selectedCalendarKey = formatCalendarKey(new Date());
 
 // ==========================================================================
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
@@ -352,6 +354,16 @@ function getStageStatusMeta(stage, app) {
     };
 }
 
+function getCompactStageStatus(stage, meta) {
+    const type = String(meta.cleanType || stage?.stage_name || '求职进展')
+        .replace(/[【】]/g, '')
+        .trim();
+    const state = stripDecorativeEmoji(meta.timelineStatusText || '待处理')
+        .replace(/[（(].*$/, '')
+        .trim() || '待处理';
+    return `${type} · ${state}`;
+}
+
 // ==========================================================================
 // 3. 求职推进管道链路生成器 (动态 Progressive Pipeline：按 seq 升序展示)
 // ==========================================================================
@@ -420,6 +432,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
+    setupSidebarCollapse();
+
     // 1. 侧边栏主视图切换 (求职全景看板 vs 邮件待审准入)
     const navItems = document.querySelectorAll('.sidebar-nav-item, .nav-tab');
     const viewPanels = document.querySelectorAll('.view-panel');
@@ -435,6 +449,7 @@ function setupEventListeners() {
             if (targetPanel) targetPanel.classList.add('active');
 
             if (targetId === 'dashboard-view') renderDashboard();
+            if (targetId === 'calendar-view') renderCalendar();
             if (targetId === 'review-view') loadReviews();
         });
     });
@@ -537,11 +552,11 @@ function setupEventListeners() {
         btnWakeWidget.addEventListener('click', async () => {
             try {
                 btnWakeWidget.disabled = true;
-                btnWakeWidget.innerHTML = '<span class="tool-icon">…</span> 正在唤醒...';
+                btnWakeWidget.innerHTML = '<span class="tool-icon">…</span><span>正在唤醒...</span>';
                 const resp = await fetch('/api/show_widget', { method: 'POST' });
                 const res = await resp.json();
                 if (res.success) {
-                    btnWakeWidget.innerHTML = '<span class="tool-icon">✓</span> 已唤醒';
+                    btnWakeWidget.innerHTML = '<span class="tool-icon">✓</span><span>已唤醒</span>';
                 } else {
                     alert('唤醒挂件提示: ' + (res.message || '挂件可能已在前台'));
                 }
@@ -551,7 +566,7 @@ function setupEventListeners() {
             } finally {
                 setTimeout(() => {
                     btnWakeWidget.disabled = false;
-                    btnWakeWidget.innerHTML = '<span class="tool-icon">💻</span> 唤醒桌面透明挂件';
+                    btnWakeWidget.innerHTML = '<span class="tool-icon">▣</span><span>唤醒桌面透明挂件</span>';
                 }, 1200);
             }
         });
@@ -599,6 +614,34 @@ function setupEventListeners() {
     if (btnCloseModal) btnCloseModal.addEventListener('click', closeConfigModal);
     if (btnCloseModalX) btnCloseModalX.addEventListener('click', closeConfigModal);
     if (btnSaveModal) btnSaveModal.addEventListener('click', saveSettings);
+}
+
+function setupSidebarCollapse() {
+    const sidebar = document.querySelector('.app-sidebar');
+    const toggle = document.getElementById('sidebar-collapse-toggle');
+    if (!sidebar || !toggle) return;
+
+    let collapsed = false;
+    try {
+        collapsed = localStorage.getItem('offerpilot-sidebar-collapsed') === 'true';
+    } catch (_) {}
+
+    const applyState = () => {
+        sidebar.classList.toggle('is-collapsed', collapsed);
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        toggle.setAttribute('aria-label', collapsed ? '展开侧栏' : '收起侧栏');
+        toggle.title = collapsed ? '展开侧栏' : '收起侧栏';
+    };
+
+    applyState();
+
+    toggle.addEventListener('click', () => {
+        collapsed = !collapsed;
+        applyState();
+        try {
+            localStorage.setItem('offerpilot-sidebar-collapsed', String(collapsed));
+        } catch (_) {}
+    });
 }
 
 // ==========================================================================
@@ -819,6 +862,7 @@ async function loadAllData() {
         // 刷新渲染 4 大 KPI 数据卡、全景看板与审核大厅
         updateKPICards();
         renderDashboard();
+        renderCalendar();
         renderReviews(reviewStages);
         renderIgnoredReviews(ignoredStages);
 
@@ -995,6 +1039,7 @@ function renderDashboard() {
             .sort((a, b) => (a.seq || 1) - (b.seq || 1));
         const latestStage = stages.length > 0 ? stages[stages.length - 1] : null;
         const meta = getStageStatusMeta(latestStage, app);
+        const compactStatus = getCompactStageStatus(latestStage, meta);
 
         const safeCompany = escapeHTML(app.company || '未知企业');
         const safeDept = app.department ? escapeHTML(app.department) : '';
@@ -1004,11 +1049,6 @@ function renderDashboard() {
         let timeFormatted = '待定';
         if (latestStage && latestStage.schedule_time && latestStage.schedule_time !== '待定') {
             timeFormatted = escapeHTML(latestStage.schedule_time);
-        } else if (app.updated_at) {
-            try {
-                const dt = new Date(app.updated_at);
-                timeFormatted = `${dt.getMonth() + 1}/${dt.getDate()} ${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
-            } catch(e) {}
         }
 
         const pipelineHTML = generatePipelineHTML(stages);
@@ -1030,21 +1070,94 @@ function renderDashboard() {
                     ${pipelineHTML}
                 </td>
                 <td>
-                    <span class="badge-tag ${meta.badgeClass}">
-                        ${meta.badgeText}
+                    <span class="badge-tag dashboard-status-badge ${meta.badgeClass}" title="${escapeHTML(meta.badgeText)}">
+                        ${escapeHTML(compactStatus)}
                     </span>
                 </td>
                 <td>
                     <span class="time-text">${timeFormatted}</span>
                 </td>
-                <td style="text-align: right;">
-                    <button class="btn-row-action" onclick="event.stopPropagation(); openTimelineDrawer('${app.id}')">
-                        查看档案 →
-                    </button>
-                </td>
             </tr>
         `;
     }).join('');
+}
+
+function parseScheduleDate(value) {
+    const matched = String(value || '').trim().match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})(?:日)?(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (!matched) return null;
+    const date = new Date(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]), Number(matched[4] || 0), Number(matched[5] || 0));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatCalendarKey(date) {
+    const pad = value => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function getCalendarEntries() {
+    return allStages.map(stage => {
+        if (['pending', 'ignored'].includes(stage.stage_status)) return null;
+        const date = parseScheduleDate(stage.schedule_time);
+        const app = allApplications.find(item => item.id === stage.application_id);
+        return date && app ? { stage, app, date, key: formatCalendarKey(date) } : null;
+    }).filter(Boolean).sort((a, b) => a.date - b.date);
+}
+
+function renderCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    const title = document.getElementById('calendar-month-title');
+    if (!grid || !title) return;
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const gridStart = new Date(year, month, 1 - ((firstDay.getDay() + 6) % 7));
+    const entries = getCalendarEntries();
+    const todayKey = formatCalendarKey(new Date());
+    title.textContent = `${year} 年 ${month + 1} 月`;
+    grid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+        const date = new Date(gridStart);
+        date.setDate(gridStart.getDate() + index);
+        const key = formatCalendarKey(date);
+        const items = entries.filter(item => item.key === key);
+        const events = items.slice(0, 2).map(item => {
+            const category = getStageStatusMeta(item.stage, item.app).category;
+            return `<span class="calendar-event calendar-event-${category}">${escapeHTML(item.app.company)} · ${escapeHTML(item.stage.stage_name)}</span>`;
+        }).join('');
+        const more = items.length > 2 ? `<span class="calendar-more">还有 ${items.length - 2} 项</span>` : '';
+        return `<button type="button" class="calendar-day${date.getMonth() !== month ? ' is-outside' : ''}${key === todayKey ? ' is-today' : ''}${key === selectedCalendarKey ? ' is-selected' : ''}" onclick="selectCalendarDay('${key}')"><span class="calendar-day-number">${date.getDate()}</span>${events}${more}</button>`;
+    }).join('');
+    renderCalendarAgenda(entries);
+}
+
+function renderCalendarAgenda(entries = getCalendarEntries()) {
+    const list = document.getElementById('calendar-agenda-list');
+    const label = document.getElementById('calendar-selected-date');
+    if (!list || !label) return;
+    const selected = parseScheduleDate(selectedCalendarKey);
+    label.textContent = selected ? `${selected.getMonth() + 1} 月 ${selected.getDate()} 日` : '';
+    const items = entries.filter(item => item.key === selectedCalendarKey);
+    if (!items.length) {
+        list.innerHTML = '<div class="calendar-empty"><span>○</span><strong>当天没有安排</strong><small>可以安心准备后续流程</small></div>';
+        return;
+    }
+    list.innerHTML = items.map(item => {
+        const meta = getStageStatusMeta(item.stage, item.app);
+        const time = String(item.stage.schedule_time).match(/\d{1,2}:\d{2}/)?.[0] || '全天';
+        return `<button type="button" class="calendar-agenda-item" onclick="openTimelineDrawer('${item.app.id}')"><span class="calendar-agenda-time">${escapeHTML(time)}</span><strong>${escapeHTML(item.app.company)} · ${escapeHTML(item.stage.stage_name)}</strong><small>${escapeHTML(getCompactStageStatus(item.stage, meta))}</small></button>`;
+    }).join('');
+}
+
+function selectCalendarDay(key) { selectedCalendarKey = key; renderCalendar(); }
+function changeCalendarMonth(offset) {
+    calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + offset, 1);
+    selectedCalendarKey = formatCalendarKey(calendarCursor);
+    renderCalendar();
+}
+function goToCalendarToday() {
+    const today = new Date();
+    calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+    selectedCalendarKey = formatCalendarKey(today);
+    renderCalendar();
 }
 
 // ==========================================================================
@@ -2356,10 +2469,9 @@ async function submitEditStage() {
         return;
     }
 
-    const companyWebsite = normalizeWebsite(meetingInfo);
-    if (meetingInfo && !companyWebsite) {
+    if (!appId) {
         if (msgEl) {
-            msgEl.textContent = '⚠️ 公司官网必须是有效的网址，例如 https://www.example.com';
+            msgEl.textContent = '⚠️ 当前环节没有关联有效的投递档案，请刷新页面后重试';
             msgEl.style.color = '#ef4444';
         }
         return;
@@ -2384,18 +2496,22 @@ async function submitEditStage() {
         }
 
         // 2. 更新 applications 主表
-        if (appId) {
-            await supabase
-                .from('applications')
-                .update({
-                    company: compName,
-                    department: deptName || null,
-                    position: posName || null,
-                    current_stage_name: stageName,
-                    overall_status: overallStatus,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', appId);
+        const { data: updatedApps, error: appErr } = await supabase
+            .from('applications')
+            .update({
+                company: compName,
+                department: deptName || '',
+                position: posName || '未指定岗位',
+                current_stage_name: stageName,
+                overall_status: overallStatus,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', appId)
+            .select('id');
+
+        if (appErr) throw appErr;
+        if (!Array.isArray(updatedApps) || updatedApps.length !== 1) {
+            throw new Error('未找到对应的投递档案，岗位修改没有保存');
         }
 
         // 3. 更新 application_stages 子表
@@ -2406,7 +2522,8 @@ async function submitEditStage() {
                     stage_name: stageName,
                     stage_status: stageDbStatus,
                     schedule_time: scheduleTime || '待定',
-                    meeting_info: companyWebsite,
+                    // 历史数据中该字段可能同时包含地点和报名链接，保留用户原文。
+                    meeting_info: meetingInfo,
                     next_expectation: nextExp || '',
                     notes: notes || '',
                     updated_at: new Date().toISOString()
