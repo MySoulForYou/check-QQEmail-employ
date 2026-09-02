@@ -165,15 +165,30 @@ class CloudSyncWorker:
             logging.error(f"❌ 更新 sync_state 异常: {e}")
 
     def get_active_applications(self):
-        """从 Supabase 动态查询当前所有活跃投递单 (overall_status=active)，用于注入 AI 上下文做智能路线匹配"""
+        """从 Supabase 动态查询当前所有有效活跃投递单 (overall_status=active 且有非 ignored 环节)，用于注入 AI 上下文做智能路线匹配"""
         try:
+            resp_stages = httpx.get(
+                f"{self.supabase_url}/rest/v1/application_stages?stage_status=neq.ignored&select=application_id",
+                headers=self.sb_headers,
+                timeout=10.0
+            )
+            active_app_ids = set()
+            if resp_stages.status_code == 200:
+                for s in resp_stages.json() or []:
+                    if s.get("application_id"):
+                        active_app_ids.add(s["application_id"])
+
             resp = httpx.get(
                 f"{self.supabase_url}/rest/v1/applications?overall_status=eq.active&select=id,company,department,position,current_stage_name&order=updated_at.desc",
                 headers=self.sb_headers,
                 timeout=10.0
             )
             if resp.status_code == 200:
-                return resp.json() or []
+                all_apps = resp.json() or []
+                if active_app_ids:
+                    valid_apps = [app for app in all_apps if app["id"] in active_app_ids]
+                    return valid_apps if valid_apps else all_apps
+                return all_apps
             logging.warning(f"⚠️ 查询活跃投递单响应状态异常: {resp.status_code}")
             return []
         except Exception as e:
