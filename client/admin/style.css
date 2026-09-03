@@ -1358,23 +1358,30 @@ body {
 .key-time-list {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 6px;
+    align-items: flex-start;
 }
 
 .key-time-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: max-content;
+    padding: 5px 8px;
+    border: 1px solid #ECE7DF;
+    border-radius: 10px;
+    background: rgba(250, 248, 245, 0.72);
 }
 
 .key-time-type {
     flex: 0 0 auto;
-    padding: 2px 6px;
+    min-width: 30px;
+    padding: 2px 5px;
     border-radius: var(--radius-full);
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     font-weight: 800;
     line-height: 1.35;
+    text-align: center;
 }
 
 .key-time-type-start {
@@ -1390,6 +1397,13 @@ body {
 .key-time-type-unknown {
     color: #64748B;
     background: #F1F5F9;
+}
+
+.key-time-item .time-text {
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    letter-spacing: -0.1px;
 }
 
 .time-hint {

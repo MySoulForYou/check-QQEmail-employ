@@ -426,6 +426,17 @@ function getScheduleTypeLabel(stage) {
     return '时间';
 }
 
+function formatDashboardScheduleTime(value) {
+    const date = parseScheduleDate(value);
+    if (!date) return escapeHTML(value || '时间待定');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    const year = date.getFullYear() === new Date().getFullYear() ? '' : `${date.getFullYear()}/`;
+    return `${year}${month}/${day} ${hour}:${minute}`;
+}
+
 // ==========================================================================
 // 3. 求职推进管道链路生成器 (动态 Progressive Pipeline：按 seq 升序展示)
 // ==========================================================================
@@ -1380,7 +1391,7 @@ function renderDashboard() {
             const scheduleType = getScheduleType(stage);
             const typeLabel = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '待定';
             const timeValue = stage.schedule_time && stage.schedule_time !== '待定'
-                ? escapeHTML(stage.schedule_time)
+                ? formatDashboardScheduleTime(stage.schedule_time)
                 : '时间待定';
             return `
                 <div class="key-time-item">
