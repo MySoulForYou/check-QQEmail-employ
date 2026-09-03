@@ -11,10 +11,10 @@ import httpx
 from urllib.parse import quote
 from openai import OpenAI
 try:
-    from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_stage_name
+    from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name
 except ModuleNotFoundError:
     # 兼容直接执行 `python cloud/worker.py` 的本地启动方式。
-    from normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_stage_name
+    from normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name
 
 # 配置日志输出格式
 logging.basicConfig(
@@ -232,6 +232,7 @@ class CloudSyncWorker:
    - position: 仅提取邮件中明确出现的具体投递岗位名称（如：前端开发工程师、后台研发、算法实习生）。严禁把招聘专业范围、招聘项目名称、邮件标题或任职资格当作岗位；邮件未明确岗位时固定返回“未指定岗位”
    - stage_name: 仅提取当前正在发生的一个客观环节，严格控制在2~6个字（如：综合测评、在线笔试、AI面试、技术一面、业务二面、总监终面、HR沟通、正式Offer等）
    - schedule_time: 面试/笔试约定时间或截止时间（格式如：2026-09-05 14:00 或 待定）
+   - schedule_type: 时间含义，只能是 start（到点开始）、deadline（截止前完成）或 unknown（待定/无法判断）。必须根据邮件措辞判断，不能只看环节名称。
    - meeting_info: 公司官方主页或官方招聘网站 URL（只允许返回 http:// 或 https:// 开头的网址，无则留空）
    - next_expectation: 客观严谨的本轮流转与等待预期（如：等待一面结果、等待笔试结果、等待正式Offer邮件、流程结束等）
    - notes: 关键备注与注意事项（如双机位要求、自备简历等，无则留空）
@@ -253,6 +254,7 @@ class CloudSyncWorker:
     "position": "岗位全称",
     "stage_name": "环节名称",
     "schedule_time": "时间",
+    "schedule_type": "start/deadline/unknown",
     "meeting_info": "https://公司官网地址",
     "next_expectation": "本轮等待预期",
     "notes": "备注/注意事项",
@@ -294,6 +296,7 @@ class CloudSyncWorker:
             position = normalize_extracted_position(ai_data.get("position"))
             stage_name = normalize_extracted_stage_name(ai_data.get("stage_name"))
             schedule_time = (ai_data.get("schedule_time") or "待定").strip()
+            schedule_type = normalize_extracted_schedule_type(ai_data.get("schedule_type"), stage_name, schedule_time)
             meeting_info = normalize_company_website(ai_data.get("meeting_info"))
             next_exp = (ai_data.get("next_expectation") or "").strip()
             notes = (ai_data.get("notes") or "").strip()
@@ -429,6 +432,7 @@ class CloudSyncWorker:
                 "stage_name": stage_name,
                 "stage_status": "pending", # 新邮件默认进入待审大厅
                 "schedule_time": schedule_time,
+                "schedule_type": schedule_type,
                 "meeting_info": meeting_info,
                 "next_expectation": next_exp,
                 "raw_email_id": str(raw_email_id),

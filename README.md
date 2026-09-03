@@ -142,6 +142,7 @@ CREATE TABLE application_stages (
     stage_name TEXT NOT NULL,
     stage_status TEXT DEFAULT 'pending', -- pending(待审) | scheduled(待办) | awaiting_result(待结果) | passed(通过) | failed(未通过) | ignored(忽略)
     schedule_time TEXT DEFAULT '待定',
+    schedule_type TEXT DEFAULT 'unknown' CHECK (schedule_type IN ('start', 'deadline', 'unknown')), -- 开始时间 | 截止时间 | 待定
     meeting_info TEXT DEFAULT '', -- 兼容历史列名，当前 Web 端仅保存公司官网 URL
     next_expectation TEXT DEFAULT '',
     raw_email_id TEXT DEFAULT '', -- 邮件 UID 幂等防重
@@ -331,6 +332,7 @@ Windows 端专为大屏求职管理打造，支持 **“免安装独立 EXE 运�
   * **6 大流程进度 Filter**：按测评、笔试、面试、Offer 精准过滤；
   * **100% 动态步进条**：彻底废除固定模板，卡片步进条 100% 根据该企业实际收到的真实环节数量与名称动态绘制。
   * **近期紧要待办**：聚合所有逾期及未来 7 天日程，默认展示最紧急的 3 项，可一键展开其余待办。
+  * 待办时间区分**开始时间**与**截止时间**：前者到点后显示“已开始”，后者超时后显示“已逾期”。旧数据会按环节名称兼容推断。
 * **🔍 全景时间线深度下钻**：
   * **已建档企业横滑栏**：顶栏仅展示已准入建档的有效企业，横滑快速切换；
   * **专属模糊搜索**：支持公司名、岗位与部门实时搜索与即时定位；

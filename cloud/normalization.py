@@ -38,6 +38,26 @@ def normalize_extracted_stage_name(value):
     return stage_name
 
 
+def normalize_extracted_schedule_type(value, stage_name="", schedule_time=""):
+    """收敛时间语义：截止、开始或待定。旧模型未返回时按环节做保守推断。"""
+    raw_type = (_normalize_text(value) or "").lower()
+    raw_time = _normalize_text(schedule_time) or ""
+    name = _normalize_text(stage_name) or ""
+    if not raw_time or raw_time in {"待定", "未知", "无"}:
+        return "unknown"
+    if raw_type in {"start", "deadline", "unknown"}:
+        return raw_type
+    if any(keyword in raw_type for keyword in ("截止", "之前", "前完成", "有效期")):
+        return "deadline"
+    if any(keyword in raw_type for keyword in ("开始", "开考", "面试时间", "宣讲时间")):
+        return "start"
+    if any(keyword in name for keyword in ("面试", "一面", "二面", "终面", "HR面", "宣讲")):
+        return "start"
+    if any(keyword in name for keyword in ("测评", "材料", "提交", "网申", "笔试")):
+        return "deadline"
+    return "unknown"
+
+
 def normalize_company_website(value):
     """仅允许保存 HTTP(S) 公司官网，过滤会议号、密码等非网址内容。"""
     website = _normalize_text(value)

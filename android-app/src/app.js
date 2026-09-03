@@ -317,6 +317,17 @@ function getStageProgressCategory(app, latestStage) {
   return 'other';
 }
 
+function getScheduleType(stage) {
+  const explicit = String(stage?.schedule_type || '').toLowerCase();
+  if (explicit === 'start' || explicit === 'deadline') return explicit;
+  const time = String(stage?.schedule_time || '').trim();
+  if (!time || time === '待定') return 'unknown';
+  const name = String(stage?.stage_name || '');
+  if (/(面试|一面|二面|终面|HR面|宣讲)/i.test(name)) return 'start';
+  if (/(测评|材料|提交|网申|笔试)/.test(name)) return 'deadline';
+  return 'unknown';
+}
+
 function updateKPIStats() {
   // 仅统计已审核放行（拥有非 pending/ignored 环节）且非归档的投递单
   const validApps = state.applications.filter(app => {
@@ -974,7 +985,9 @@ function renderTimelineView(appId) {
     }
 
     // 格式化时间
-    const timeDisplay = stg.schedule_time || '待定';
+    const scheduleType = getScheduleType(stg);
+    const timePrefix = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '时间';
+    const timeDisplay = stg.schedule_time && stg.schedule_time !== '待定' ? `${timePrefix}：${stg.schedule_time}` : '时间待定';
 
     return `
       <div class="timeline-bubble-item ${isParallel ? 'timeline-parallel-item' : ''}">
@@ -1049,6 +1062,7 @@ function openManualModal(defaultCompany = '') {
   document.getElementById('m-position').value = '';
   document.getElementById('m-stage-name').value = '';
   document.getElementById('m-schedule-time').value = '';
+  document.getElementById('m-schedule-type').value = 'deadline';
   document.getElementById('m-meeting').value = '';
   const existingApp = state.applications.find(app => app.company === defaultCompany);
   const positionWrap = document.getElementById('m-stage-position-wrap');
@@ -1065,6 +1079,7 @@ window.closeManualModal = function() {
 
 window.setMPreset = function(name) {
   document.getElementById('m-stage-name').value = name;
+  document.getElementById('m-schedule-type').value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(name) ? 'start' : 'deadline';
   triggerHaptic('light');
 };
 
@@ -1074,6 +1089,7 @@ window.submitManualStage = async function() {
   const position = document.getElementById('m-position').value.trim();
   const stageName = document.getElementById('m-stage-name').value.trim();
   const scheduleTime = document.getElementById('m-schedule-time').value.trim();
+  const scheduleType = document.getElementById('m-schedule-type').value;
   const meeting = document.getElementById('m-meeting').value.trim();
   const statusRadio = document.querySelector('input[name="m-status-radio"]:checked');
   const stageStatus = statusRadio ? statusRadio.value : 'scheduled';
@@ -1088,7 +1104,7 @@ window.submitManualStage = async function() {
   try {
     await supabaseService.createApplicationWithStage(
       { company, department: dept, position },
-      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting, parallel_with_latest: positionMode === 'parallel' }
+      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, schedule_type: scheduleTime ? scheduleType : 'unknown', meeting_info: meeting, parallel_with_latest: positionMode === 'parallel' }
     );
     showToast(`✨ 成功为【${company}】建档并推进【${stageName}】！`);
     window.closeManualModal();
@@ -1124,6 +1140,7 @@ window.openEditModalForCurrent = function(targetStageId) {
   // 2. 精确回显当前环节的名字、时间、会议与状态
   document.getElementById('e-stage-name').value = targetStage ? targetStage.stage_name : '';
   document.getElementById('e-schedule-time').value = targetStage ? (targetStage.schedule_time || '') : '';
+  document.getElementById('e-schedule-type').value = targetStage ? getScheduleType(targetStage) : 'unknown';
   document.getElementById('e-meeting').value = targetStage ? (targetStage.meeting_info || '') : '';
   document.getElementById('e-notes').value = targetStage ? (targetStage.notes || '') : '';
 
@@ -1158,6 +1175,7 @@ window.closeEditModal = function() {
 
 window.setEPreset = function(name) {
   document.getElementById('e-stage-name').value = name;
+  document.getElementById('e-schedule-type').value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(name) ? 'start' : 'deadline';
   triggerHaptic('light');
 };
 
@@ -1169,6 +1187,7 @@ window.submitEditStage = async function() {
   const position = document.getElementById('e-position').value.trim();
   const stageName = document.getElementById('e-stage-name').value.trim();
   const scheduleTime = document.getElementById('e-schedule-time').value.trim();
+  const scheduleType = document.getElementById('e-schedule-type').value;
   const meeting = document.getElementById('e-meeting').value.trim();
   const notes = document.getElementById('e-notes').value.trim();
   const statusRadio = document.querySelector('input[name="e-status-radio"]:checked');
@@ -1204,7 +1223,7 @@ window.submitEditStage = async function() {
     await supabaseService.updateStageAndApplication(
       stageId,
       appId,
-      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting, notes, seq: targetSeq },
+      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, schedule_type: scheduleTime ? scheduleType : 'unknown', meeting_info: meeting, notes, seq: targetSeq },
       appUpdateData
     );
     showToast(`💾 已成功修正【${stageName}】环节信息！`);

@@ -233,6 +233,7 @@ class SupabaseMobileService {
         stage_name: stageData.stage_name,
         stage_status: stageData.stage_status || 'scheduled',
         schedule_time: stageData.schedule_time || '待定',
+        schedule_type: stageData.schedule_type || 'unknown',
         meeting_info: stageData.meeting_info || '',
         next_expectation: stageData.next_expectation || '',
         notes: stageData.notes || ''

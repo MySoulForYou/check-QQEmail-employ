@@ -343,9 +343,19 @@
 
                     <div class="form-row">
                         <div class="form-item form-col">
+                            <label>时间性质</label>
+                            <select id="manual-schedule-type" class="stage-position-select">
+                                <option value="deadline">截止时间</option>
+                                <option value="start">开始时间</option>
+                                <option value="unknown">时间待定</option>
+                            </select>
+                        </div>
+                        <div class="form-item form-col">
                             <label>约定 / 通知时间 (选填)</label>
                             <input type="text" id="manual-stage-time" placeholder="例如：2026-08-25 14:00、明天 10:00" spellcheck="false" />
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-item form-col">
                             <label>公司官网 (选填)</label>
                             <input type="url" id="manual-stage-notes" placeholder="例如：https://www.example.com" spellcheck="false" />
@@ -469,9 +479,19 @@
                     <!-- 4. 约定时间与公司官网 -->
                     <div class="form-row">
                         <div class="form-item form-col">
+                            <label>时间性质</label>
+                            <select id="edit-schedule-type" class="stage-position-select">
+                                <option value="deadline">截止时间</option>
+                                <option value="start">开始时间</option>
+                                <option value="unknown">时间待定</option>
+                            </select>
+                        </div>
+                        <div class="form-item form-col">
                             <label>约定 / 截止时间 (选填)</label>
                             <input type="text" id="edit-schedule-time" placeholder="例如：2026-08-25 19:00 或 待定" spellcheck="false" />
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-item form-col">
                             <label>公司官网 (选填)</label>
                             <input type="url" id="edit-meeting-info" placeholder="例如：https://www.example.com" spellcheck="false" />

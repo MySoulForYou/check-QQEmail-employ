@@ -408,6 +408,24 @@ function getCompactStageStatus(stage, meta) {
     return `${type} · ${state}`;
 }
 
+function getScheduleType(stage) {
+    const explicit = String(stage?.schedule_type || '').toLowerCase();
+    if (['start', 'deadline'].includes(explicit)) return explicit;
+    const time = String(stage?.schedule_time || '').trim();
+    if (!time || time === '待定') return 'unknown';
+    const name = String(stage?.stage_name || '');
+    if (/(面试|一面|二面|终面|HR面|宣讲)/i.test(name)) return 'start';
+    if (/(测评|材料|提交|网申|笔试)/.test(name)) return 'deadline';
+    return 'unknown';
+}
+
+function getScheduleTypeLabel(stage) {
+    const type = getScheduleType(stage);
+    if (type === 'start') return '开始时间';
+    if (type === 'deadline') return '截止时间';
+    return '时间';
+}
+
 // ==========================================================================
 // 3. 求职推进管道链路生成器 (动态 Progressive Pipeline：按 seq 升序展示)
 // ==========================================================================
@@ -1115,6 +1133,8 @@ function renderUrgentBanner() {
         if (!app) return null;
 
         const date = parseScheduleDate(stage.schedule_time);
+        const scheduleType = getScheduleType(stage);
+        const scheduleVerb = scheduleType === 'deadline' ? '截止' : scheduleType === 'start' ? '开始' : '时间';
         let timeLabel = stage.schedule_time || '待定时间';
         let isToday = false;
         let isTomorrow = false;
@@ -1123,7 +1143,7 @@ function renderUrgentBanner() {
 
         if (date) {
             const diffMs = date.getTime() - now.getTime();
-            isOverdue = diffMs < 0;
+            isOverdue = scheduleType === 'deadline' && diffMs < 0;
             urgencyScore = date.getTime();
             const dateKey = formatCalendarKey(date);
             const timePart = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -1131,25 +1151,33 @@ function renderUrgentBanner() {
             if (dateKey === todayStr) {
                 isToday = true;
                 const hoursLeft = Math.round(diffMs / (1000 * 3600));
-                if (diffMs < 0) {
+                if (scheduleType === 'deadline' && diffMs < 0) {
                     timeLabel = `⚠️ 今日已到期 · ${timePart}`;
+                } else if (scheduleType === 'start' && diffMs < 0) {
+                    timeLabel = `▶ 今日已开始 · ${timePart}`;
+                } else if (diffMs < 0) {
+                    timeLabel = `⏱ 今日时间已到 · ${timePart}`;
                 } else if (hoursLeft <= 1) {
-                    timeLabel = `🔥 今日 ${timePart} · 1小时内开始`;
+                    timeLabel = scheduleType === 'deadline'
+                        ? `🔥 截止 ${timePart} · 不足1小时`
+                        : `🔥 ${scheduleVerb} ${timePart} · 1小时内`;
                 } else {
-                    timeLabel = `🔥 今日 ${timePart} · 倒计时 ${hoursLeft}小时`;
+                    timeLabel = `🔥 今日${scheduleVerb} ${timePart} · ${hoursLeft}小时`;
                 }
             } else if (dateKey === tomorrowStr) {
                 isTomorrow = true;
-                timeLabel = `⏳ 明天 ${timePart}`;
+                timeLabel = `⏳ 明天${scheduleVerb} ${timePart}`;
             } else if (isOverdue) {
                 timeLabel = `⚠️ 已逾期 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+            } else if (scheduleType === 'start' && diffMs < 0) {
+                timeLabel = `▶ 已开始 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
             } else {
-                timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+                timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日${scheduleVerb} ${timePart}`;
             }
         } else return null;
 
         // 逾期任务始终保留；未逾期任务只展示未来 7 天。
-        if (!isOverdue && date.getTime() > urgentHorizon.getTime()) return null;
+        if (date.getTime() > urgentHorizon.getTime()) return null;
 
         return { stage, app, date, timeLabel, isToday, isTomorrow, isOverdue, urgencyScore };
     }).filter(Boolean).sort((a, b) => a.urgencyScore - b.urgencyScore);
@@ -1197,8 +1225,9 @@ function renderUrgentBanner() {
                     const safeWebsite = getCompanyWebsite(app);
 
                     let cardBadgeClass = 'pill-amber';
-                    if (isToday || isOverdue) cardBadgeClass = 'pill-rose';
-                    else if (isTomorrow) cardBadgeClass = 'pill-indigo';
+                    const scheduleType = getScheduleType(stage);
+                    if (isOverdue || (isToday && scheduleType === 'deadline')) cardBadgeClass = 'pill-rose';
+                    else if ((isToday || isTomorrow) && scheduleType === 'start') cardBadgeClass = 'pill-indigo';
 
                     const isInvite = safeStage.includes('邀请') || safeStage.includes('宣讲') || safeStage.includes('夏令营');
                     const finishBtnLabel = isInvite ? '✓ 标为已投递' : '✓ 标为已参加';
@@ -1577,7 +1606,7 @@ function openTimelineDrawer(appId) {
                         </div>
 
                         <div class="timeline-status-row">
-                            <span style="color:var(--text-muted);font-size:0.85rem;">约定时间: <strong>${safeTime}</strong></span>
+                            <span style="color:var(--text-muted);font-size:0.85rem;">${getScheduleTypeLabel(s)}: <strong>${safeTime}</strong></span>
                             <div style="display:inline-flex;align-items:center;gap:6px;">
                                 <span class="badge-tag ${meta.badgeClass}" style="font-size:0.75rem;">${meta.timelineStatusText}</span>
                                 ${actionButtonsHTML}
@@ -2478,6 +2507,8 @@ function openManualStageModal(targetAppId) {
 
     if (typeInput) typeInput.value = '';
     if (timeInput) timeInput.value = '';
+    const scheduleTypeInput = document.getElementById('manual-schedule-type');
+    if (scheduleTypeInput) scheduleTypeInput.value = 'deadline';
     if (notesInput) notesInput.value = '';
     if (notesInput && targetAppId) {
         const app = allApplications.find(item => item.id === targetAppId);
@@ -2501,6 +2532,10 @@ function selectStagePreset(presetName) {
     if (!typeInput) return;
 
     typeInput.value = presetName;
+    const scheduleTypeInput = document.getElementById('manual-schedule-type');
+    if (scheduleTypeInput) {
+        scheduleTypeInput.value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(presetName) ? 'start' : 'deadline';
+    }
 
     // 智能自动填充默认预期
     if (nextExpInput && !nextExpInput.value) {
@@ -2538,6 +2573,7 @@ async function submitManualStage() {
     const nextExp = (document.getElementById('manual-next-exp')?.value || '').trim();
     const statusRadio = document.querySelector('input[name="manual-status"]:checked');
     const initialStatus = statusRadio ? statusRadio.value : 'approved';
+    const scheduleType = document.getElementById('manual-schedule-type')?.value || 'unknown';
     const positionMode = document.getElementById('manual-stage-position')?.value || 'next';
     const msgEl = document.getElementById('manual-stage-msg');
     const submitBtn = document.getElementById('btn-submit-manual-stage');
@@ -2658,6 +2694,7 @@ async function submitManualStage() {
             stage_name: stageType,
             stage_status: stageTargetStatus,
             schedule_time: stageTime || '待定',
+            schedule_type: stageTime ? scheduleType : 'unknown',
             meeting_info: companyWebsite,
             next_expectation: nextExp || '',
             notes: '',
@@ -2737,6 +2774,7 @@ function openEditStageModal(stageId) {
 
     // 填充约定时间与公司官网
     document.getElementById('edit-schedule-time').value = stage.schedule_time || '';
+    document.getElementById('edit-schedule-type').value = getScheduleType(stage);
     document.getElementById('edit-meeting-info').value = stage.meeting_info || '';
     document.getElementById('edit-next-expectation').value = stage.next_expectation || '';
     document.getElementById('edit-stage-notes').value = stage.notes || '';
@@ -2773,6 +2811,10 @@ function selectEditStagePreset(presetName) {
     const stageInput = document.getElementById('edit-stage-name');
     const nextExpInput = document.getElementById('edit-next-expectation');
     if (stageInput) stageInput.value = presetName;
+    const scheduleTypeInput = document.getElementById('edit-schedule-type');
+    if (scheduleTypeInput) {
+        scheduleTypeInput.value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(presetName) ? 'start' : 'deadline';
+    }
 
     if (nextExpInput && !nextExpInput.value) {
         if (presetName.includes('网申')) nextExpInput.value = '等待简历初筛结果';
@@ -2800,6 +2842,7 @@ async function submitEditStage() {
     const stageName = (document.getElementById('edit-stage-name')?.value || '').trim();
     const statusVal = document.querySelector('input[name="edit-stage-status"]:checked')?.value || 'scheduled';
     const scheduleTime = (document.getElementById('edit-schedule-time')?.value || '').trim();
+    const scheduleType = document.getElementById('edit-schedule-type')?.value || 'unknown';
     const meetingInfo = (document.getElementById('edit-meeting-info')?.value || '').trim();
     const nextExp = (document.getElementById('edit-next-expectation')?.value || '').trim();
     const notes = (document.getElementById('edit-stage-notes')?.value || '').trim();
@@ -2886,6 +2929,7 @@ async function submitEditStage() {
                     stage_name: stageName,
                     stage_status: stageDbStatus,
                     schedule_time: scheduleTime || '待定',
+                    schedule_type: scheduleTime ? scheduleType : 'unknown',
                     // 历史数据中该字段可能同时包含地点和报名链接，保留用户原文。
                     meeting_info: meetingInfo,
                     next_expectation: nextExp || '',
