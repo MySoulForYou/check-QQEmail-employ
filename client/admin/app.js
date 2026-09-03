@@ -105,6 +105,10 @@ let currentReviewCategory = 'all';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedCalendarKey = formatCalendarKey(new Date());
 let urgentBannerExpanded = false;
+let urgentBannerOpen = false;
+let urgentBannerPinned = false;
+let urgentBannerOpenTimer = null;
+let urgentBannerCloseTimer = null;
 
 // ==========================================================================
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
@@ -1211,8 +1215,14 @@ function renderUrgentBanner() {
 
     const visibleUrgentItems = urgentBannerExpanded ? urgentItems : urgentItems.slice(0, 3);
     const hiddenCount = urgentItems.length - visibleUrgentItems.length;
+    const overdueCount = urgentItems.filter(item => item.isOverdue).length;
+    const summaryText = overdueCount > 0
+        ? `${overdueCount} 项已逾期`
+        : `最近：${urgentItems[0].timeLabel}`;
 
     banner.style.display = 'block';
+    banner.classList.toggle('is-open', urgentBannerOpen || urgentBannerPinned);
+    banner.classList.toggle('is-pinned', urgentBannerPinned);
     banner.innerHTML = `
         <div class="urgent-banner-box">
             <div class="urgent-banner-header">
@@ -1220,13 +1230,20 @@ function renderUrgentBanner() {
                     <span class="urgent-pulse-indicator" aria-hidden="true"></span>
                     <span class="urgent-header-title">⚡ 近期紧要待办</span>
                     <span class="urgent-counter-pill">${urgentItems.length} 项日程</span>
+                    <span class="urgent-collapsed-summary">${escapeHTML(summaryText)}</span>
                 </div>
-                <button type="button" class="btn-urgent-cal-link" onclick="document.getElementById('nav-item-calendar')?.click()">
-                    📅 查看完整求职日历 ➔
-                </button>
+                <div class="urgent-header-actions">
+                    <button type="button" class="btn-urgent-cal-link" onclick="document.getElementById('nav-item-calendar')?.click()">
+                        📅 查看完整求职日历 ➔
+                    </button>
+                    <button type="button" class="btn-urgent-pin" onclick="toggleUrgentBannerPinned(event)" aria-pressed="${urgentBannerPinned}" title="${urgentBannerPinned ? '取消固定' : '固定展开'}">
+                        ${urgentBannerPinned ? '📌' : urgentBannerOpen ? '⌃' : '›'}
+                    </button>
+                </div>
             </div>
-            <div class="urgent-cards-scroll">
-                ${visibleUrgentItems.map(item => {
+            <div class="urgent-banner-content">
+                <div class="urgent-cards-scroll">
+                    ${visibleUrgentItems.map(item => {
                     const { stage, app, timeLabel, isToday, isTomorrow, isOverdue } = item;
                     const meta = getStageStatusMeta(stage, app);
                     const safeCompany = escapeHTML(app.company || '未知企业');
@@ -1271,20 +1288,85 @@ function renderUrgentBanner() {
                             </div>
                         </div>
                     `;
-                }).join('')}
+                    }).join('')}
+                </div>
+                ${urgentItems.length > 3 ? `
+                    <button type="button" class="btn-urgent-expand" onclick="toggleUrgentBannerExpanded()">
+                        ${urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项 ↓`}
+                    </button>
+                ` : ''}
             </div>
-            ${urgentItems.length > 3 ? `
-                <button type="button" class="btn-urgent-expand" onclick="toggleUrgentBannerExpanded()">
-                    ${urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项 ↓`}
-                </button>
-            ` : ''}
         </div>
     `;
+    bindUrgentBannerInteractions();
 }
 
 function toggleUrgentBannerExpanded() {
     urgentBannerExpanded = !urgentBannerExpanded;
     renderUrgentBanner();
+}
+
+function applyUrgentBannerState() {
+    const banner = document.getElementById('urgent-action-banner');
+    if (!banner) return;
+    const isOpen = urgentBannerOpen || urgentBannerPinned;
+    banner.classList.toggle('is-open', isOpen);
+    banner.classList.toggle('is-pinned', urgentBannerPinned);
+    const pinButton = banner.querySelector('.btn-urgent-pin');
+    if (pinButton) {
+        pinButton.textContent = urgentBannerPinned ? '📌' : urgentBannerOpen ? '⌃' : '›';
+        pinButton.title = urgentBannerPinned ? '取消固定' : urgentBannerOpen ? '收起待办' : '展开并固定';
+        pinButton.setAttribute('aria-pressed', String(urgentBannerPinned));
+    }
+}
+
+function scheduleUrgentBannerOpen() {
+    clearTimeout(urgentBannerCloseTimer);
+    if (urgentBannerPinned) return;
+    clearTimeout(urgentBannerOpenTimer);
+    urgentBannerOpenTimer = setTimeout(() => {
+        urgentBannerOpen = true;
+        applyUrgentBannerState();
+    }, 150);
+}
+
+function scheduleUrgentBannerClose() {
+    clearTimeout(urgentBannerOpenTimer);
+    if (urgentBannerPinned) return;
+    clearTimeout(urgentBannerCloseTimer);
+    urgentBannerCloseTimer = setTimeout(() => {
+        urgentBannerOpen = false;
+        applyUrgentBannerState();
+    }, 300);
+}
+
+function toggleUrgentBannerPinned(event) {
+    event?.stopPropagation();
+    const supportsHover = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+    if (supportsHover) {
+        urgentBannerPinned = !urgentBannerPinned;
+        const banner = document.getElementById('urgent-action-banner');
+        urgentBannerOpen = urgentBannerPinned || Boolean(banner?.matches(':hover'));
+    } else {
+        urgentBannerOpen = !urgentBannerOpen;
+    }
+    applyUrgentBannerState();
+}
+
+function bindUrgentBannerInteractions() {
+    const banner = document.getElementById('urgent-action-banner');
+    if (!banner || banner.dataset.hoverBound === 'true') return;
+    banner.dataset.hoverBound = 'true';
+    banner.addEventListener('mouseenter', scheduleUrgentBannerOpen);
+    banner.addEventListener('mouseleave', scheduleUrgentBannerClose);
+    banner.addEventListener('focusin', () => {
+        clearTimeout(urgentBannerCloseTimer);
+        urgentBannerOpen = true;
+        applyUrgentBannerState();
+    });
+    banner.addEventListener('focusout', event => {
+        if (!banner.contains(event.relatedTarget)) scheduleUrgentBannerClose();
+    });
 }
 
 // ==========================================================================
