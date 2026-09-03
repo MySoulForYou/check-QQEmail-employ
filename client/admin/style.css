@@ -828,6 +828,25 @@ body {
     gap: 12px;
 }
 
+.btn-urgent-expand {
+    display: block;
+    margin: 12px auto 0;
+    padding: 7px 18px;
+    border: 1px solid #FDE68A;
+    border-radius: var(--radius-full);
+    background: #FFFBEB;
+    color: #B45309;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.btn-urgent-expand:hover {
+    background: #FEF3C7;
+    transform: translateY(-1px);
+}
+
 .urgent-item-card {
     background: #FFFFFF;
     border: 1px solid rgba(230, 222, 208, 0.9);

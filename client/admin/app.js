@@ -104,6 +104,7 @@ let currentSearchQuery = '';
 let currentReviewCategory = 'all';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedCalendarKey = formatCalendarKey(new Date());
+let urgentBannerExpanded = false;
 
 // ==========================================================================
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
@@ -1107,6 +1108,7 @@ function renderUrgentBanner() {
     const todayStr = formatCalendarKey(now);
     const tomorrow = new Date(now.getTime() + 86400000);
     const tomorrowStr = formatCalendarKey(tomorrow);
+    const urgentHorizon = new Date(now.getTime() + 7 * 86400000);
 
     const urgentItems = scheduledStages.map(stage => {
         const app = allApplications.find(a => a.id === stage.application_id);
@@ -1121,6 +1123,7 @@ function renderUrgentBanner() {
 
         if (date) {
             const diffMs = date.getTime() - now.getTime();
+            isOverdue = diffMs < 0;
             urgencyScore = date.getTime();
             const dateKey = formatCalendarKey(date);
             const timePart = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -1130,7 +1133,6 @@ function renderUrgentBanner() {
                 const hoursLeft = Math.round(diffMs / (1000 * 3600));
                 if (diffMs < 0) {
                     timeLabel = `⚠️ 今日已到期 · ${timePart}`;
-                    isOverdue = true;
                 } else if (hoursLeft <= 1) {
                     timeLabel = `🔥 今日 ${timePart} · 1小时内开始`;
                 } else {
@@ -1139,13 +1141,15 @@ function renderUrgentBanner() {
             } else if (dateKey === tomorrowStr) {
                 isTomorrow = true;
                 timeLabel = `⏳ 明天 ${timePart}`;
+            } else if (isOverdue) {
+                timeLabel = `⚠️ 已逾期 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
             } else {
                 timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
             }
-        } else {
-            urgencyScore = now.getTime() + 86400000 * 30;
-            timeLabel = '⏳ 时间待定 · 待推进';
-        }
+        } else return null;
+
+        // 逾期任务始终保留；未逾期任务只展示未来 7 天。
+        if (!isOverdue && date.getTime() > urgentHorizon.getTime()) return null;
 
         return { stage, app, date, timeLabel, isToday, isTomorrow, isOverdue, urgencyScore };
     }).filter(Boolean).sort((a, b) => a.urgencyScore - b.urgencyScore);
@@ -1156,7 +1160,7 @@ function renderUrgentBanner() {
             <div class="urgent-banner-peaceful">
                 <div class="peaceful-left">
                     <span class="peaceful-icon">☕</span>
-                    <span class="peaceful-text">近期 48 小时暂无紧要笔面试日程，状态良好，从容备战！</span>
+                    <span class="peaceful-text">未来 7 天暂无紧要待办，状态良好，从容备战！</span>
                 </div>
                 <div class="peaceful-right">
                     <button class="btn-urgent-create" onclick="openManualStageModal()">＋ 推进新环节</button>
@@ -1165,6 +1169,9 @@ function renderUrgentBanner() {
         `;
         return;
     }
+
+    const visibleUrgentItems = urgentBannerExpanded ? urgentItems : urgentItems.slice(0, 3);
+    const hiddenCount = urgentItems.length - visibleUrgentItems.length;
 
     banner.style.display = 'block';
     banner.innerHTML = `
@@ -1180,7 +1187,7 @@ function renderUrgentBanner() {
                 </button>
             </div>
             <div class="urgent-cards-scroll">
-                ${urgentItems.map(item => {
+                ${visibleUrgentItems.map(item => {
                     const { stage, app, timeLabel, isToday, isTomorrow, isOverdue } = item;
                     const meta = getStageStatusMeta(stage, app);
                     const safeCompany = escapeHTML(app.company || '未知企业');
@@ -1190,7 +1197,7 @@ function renderUrgentBanner() {
                     const safeWebsite = getCompanyWebsite(app);
 
                     let cardBadgeClass = 'pill-amber';
-                    if (isToday) cardBadgeClass = 'pill-rose';
+                    if (isToday || isOverdue) cardBadgeClass = 'pill-rose';
                     else if (isTomorrow) cardBadgeClass = 'pill-indigo';
 
                     const isInvite = safeStage.includes('邀请') || safeStage.includes('宣讲') || safeStage.includes('夏令营');
@@ -1226,8 +1233,18 @@ function renderUrgentBanner() {
                     `;
                 }).join('')}
             </div>
+            ${urgentItems.length > 3 ? `
+                <button type="button" class="btn-urgent-expand" onclick="toggleUrgentBannerExpanded()">
+                    ${urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项 ↓`}
+                </button>
+            ` : ''}
         </div>
     `;
+}
+
+function toggleUrgentBannerExpanded() {
+    urgentBannerExpanded = !urgentBannerExpanded;
+    renderUrgentBanner();
 }
 
 // ==========================================================================
