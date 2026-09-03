@@ -35,6 +35,11 @@
           </div>
         </header>
 
+        <!-- ⚡ 呼吸感紧急待办通报栏 (Urgent Action Banner) -->
+        <div class="urgent-action-banner" id="dashboard-urgent-banner" style="display:none;">
+          <!-- 动态注入待办卡片或空状态提示 -->
+        </div>
+
         <!-- 顶部 4 大 Bento 瓷感 KPI 指标卡 (待办/结果客观状态维度) -->
         <div class="bento-grid-wrapper">
           <!-- 卡片 1: 全部已建档企业 -->
@@ -101,6 +106,55 @@
           <div class="empty-loading-state" id="dashboard-loading">
             <div class="loading-spinner"></div>
             <span>正在连接 Supabase 云端同步中...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 视图 E: 求职日历大厅与当日事项 (Calendar) ================= -->
+      <section id="view-calendar" class="tab-view">
+        <header class="app-topbar calendar-topbar">
+          <div class="topbar-header-row">
+            <div class="brand-badge">
+              <span class="sparkle-icon">📅</span>
+              <span class="brand-text">求职日程日历</span>
+            </div>
+            <button class="calendar-today-pill" id="btn-calendar-today" onclick="window.goToCalendarToday()">
+              今天
+            </button>
+          </div>
+
+          <!-- 月份切换控制器 -->
+          <div class="calendar-month-controller">
+            <button type="button" class="btn-month-nav" onclick="window.changeCalendarMonth(-1)" title="上个月">‹</button>
+            <span class="calendar-month-display" id="calendar-month-title">2026年9月</span>
+            <button type="button" class="btn-month-nav" onclick="window.changeCalendarMonth(1)" title="下个月">›</button>
+          </div>
+        </header>
+
+        <div class="calendar-scroll-body">
+          <!-- 瓷感月历网格卡片 -->
+          <div class="porcelain-calendar-card">
+            <div class="calendar-weekdays-row">
+              <span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span><span>周六</span><span>周日</span>
+            </div>
+            <div class="calendar-days-grid" id="calendar-days-grid">
+              <!-- 动态注入 42 格日历单元 -->
+            </div>
+          </div>
+
+          <!-- 选中日期日程事项 (Daily Agenda) -->
+          <div class="calendar-agenda-section">
+            <div class="agenda-section-header">
+              <div class="agenda-title-group">
+                <span class="agenda-dot-indicator"></span>
+                <span class="agenda-title">当日事项</span>
+                <span class="agenda-date-badge" id="calendar-selected-date-badge">9月3日</span>
+              </div>
+              <span class="agenda-count-badge" id="calendar-selected-count-badge">0 项安排</span>
+            </div>
+            <div class="agenda-cards-list" id="calendar-agenda-list">
+              <!-- 动态注入当日日程卡片 -->
+            </div>
           </div>
         </div>
       </section>
@@ -282,7 +336,7 @@
 
             <div class="telemetry-item-row">
               <span class="telemetry-label">客户端版本</span>
-              <span class="telemetry-value-tag">v3.3.0 (Android Native)</span>
+              <span class="telemetry-value-tag">v3.5.1 (Android Native)</span>
             </div>
           </div>
 
@@ -291,8 +345,8 @@
             <div class="card-section-header">
               <span class="section-icon">📳</span>
               <div class="section-title-group">
-                <h3>交互与触感反馈</h3>
-                <p>手势滑动与准入时的微震动反馈</p>
+                <h3>交互与提醒设置</h3>
+                <p>触感微震动与系统本地日程提醒</p>
               </div>
             </div>
 
@@ -300,6 +354,17 @@
               <span>启用 Haptic 触感微震动</span>
               <label class="switch-control">
                 <input type="checkbox" id="chk-haptic-feedback" checked>
+                <span class="slider-toggle"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row" style="margin-top: 14px; border-top: 1px dashed var(--border-porcelain); padding-top: 12px;">
+              <div>
+                <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">本地日程临期提醒推送</div>
+                <div style="font-size: 0.76rem; color: var(--text-sub); margin-top: 2px;">测评/笔试/面试提前 1小时及15分钟推送提醒</div>
+              </div>
+              <label class="switch-control">
+                <input type="checkbox" id="chk-notifications-enabled" checked>
                 <span class="slider-toggle"></span>
               </label>
             </div>
@@ -335,6 +400,9 @@
             <div class="excerpt-content" id="drawer-email-raw-snippet">
               <!-- 动态注入邮件正文片段 -->
             </div>
+            <button type="button" class="btn-copy-raw-email" id="drawer-btn-copy-email" onclick="window.copyCurrentDrawerEmailSubject()" style="display:none; margin-top:8px;">
+              ✉️ 复制邮件主题快速查原件
+            </button>
           </div>
 
           <!-- 3. 会议代码与凭据卡片 -->
@@ -356,6 +424,40 @@
           </button>
           <button class="btn-sheet-ignore" id="drawer-btn-ignore" onclick="window.ignoreCurrentDrawerStage()">
             <span class="cross-icon">✕</span> 移入已忽略
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2.1 📅 当日求职日程悬浮弹窗 (Calendar Day Agenda Sheet) ==================== -->
+    <div class="bottom-sheet-overlay" id="calendar-agenda-overlay" onclick="window.closeCalendarAgendaSheet(event)">
+      <div class="bottom-sheet-container calendar-agenda-sheet" id="calendar-agenda-container">
+        <!-- 顶部拖拽横条把手 -->
+        <div class="sheet-drag-handle"></div>
+
+        <div class="sheet-header">
+          <div class="sheet-header-title">
+            <span class="agenda-sheet-icon">📅</span>
+            <div>
+              <div class="sheet-title-text" id="agenda-sheet-date-title">9月3日 周四</div>
+              <div class="agenda-sheet-subtitle">
+                <span>当日求职安排</span>
+                <span class="agenda-sheet-count-tag" id="agenda-sheet-count-tag">0 项安排</span>
+              </div>
+            </div>
+          </div>
+          <button class="sheet-close-btn" onclick="window.closeCalendarAgendaSheetDirect()">&times;</button>
+        </div>
+
+        <div class="sheet-body-scroll" style="max-height: 55vh; padding-bottom: 8px;">
+          <div class="agenda-cards-list" id="calendar-agenda-sheet-list">
+            <!-- 动态注入当日事项 -->
+          </div>
+        </div>
+
+        <div class="sheet-bottom-actions" style="margin-top: 10px;">
+          <button class="btn-sheet-approve" style="background: var(--accent-indigo);" onclick="window.openManualModalForCalendarDay()">
+            <span class="plus-icon">＋</span> 为当天添加求职安排
           </button>
         </div>
       </div>
@@ -591,6 +693,11 @@
         <span class="nav-title">控制台</span>
       </button>
 
+      <button class="nav-btn" data-target="view-calendar" id="nav-btn-calendar">
+        <span class="nav-icon">📅</span>
+        <span class="nav-title">求职日历</span>
+      </button>
+
       <button class="nav-btn" data-target="view-review" id="nav-btn-review">
         <span class="nav-icon">📬</span>
         <span class="nav-title">审核管理</span>
@@ -598,8 +705,8 @@
       </button>
 
       <button class="nav-btn" data-target="view-timeline" id="nav-btn-timeline">
-        <span class="nav-icon">🗓️</span>
-        <span class="nav-title">全景时间</span>
+        <span class="nav-icon">⏳</span>
+        <span class="nav-title">全景档案</span>
       </button>
 
       <button class="nav-btn" data-target="view-settings" id="nav-btn-settings">

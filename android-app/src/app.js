@@ -5,6 +5,20 @@
 
 import { supabaseService } from './supabase.js';
 import { triggerHaptic } from './haptics.js';
+import { notificationService } from './notifications.js';
+
+// ==================== 时间与日期辅助解析 ====================
+function parseScheduleDate(value) {
+  const matched = String(value || '').trim().match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})(?:日)?(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (!matched) return null;
+  const date = new Date(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]), Number(matched[4] || 0), Number(matched[5] || 0));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatCalendarKey(date) {
+  const pad = value => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
 
 // ==================== 全局状态管理 ====================
 const state = {
@@ -18,7 +32,10 @@ const state = {
   reviewSubtab: 'pending',
   currentTimelineAppId: null,
   currentDrawerStageId: null,
-  isDrawerOpen: false
+  isDrawerOpen: false,
+  urgentBannerExpanded: false,
+  calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  selectedCalendarKey: formatCalendarKey(new Date())
 };
 
 // ==================== 1. 初始化入口 ====================
@@ -28,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSearchAndFilters();
   initSettings();
   initRealtimeTelemetry();
+  notificationService.init();
   
   // 首次拉取数据或展示配置指引
   const cfg = supabaseService.getConfig();
@@ -37,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     // 手机端首次打开未配置时，在大厅展示安全连接引导
     renderDashboard();
+    renderUrgentBanner();
+    renderCalendar();
     renderReviewHall();
   }
 
@@ -114,18 +134,25 @@ function switchToTab(tabId) {
 
   // 3. 智能滚动位置恢复机制
   if (tabId === 'view-dashboard') {
-    // 切回控制台：无感恢复到上次浏览的精确坐标
+    // 切回控制台：无感恢复到上次浏览的精确坐标并刷新紧急通报栏
+    renderUrgentBanner();
     requestAnimationFrame(() => {
       window.scrollTo({
         top: state.dashboardScrollY || 0,
         behavior: 'instant'
       });
     });
+  } else if (tabId === 'view-calendar') {
+    // 切换到求职日历
+    renderCalendar();
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else {
     // 切换到全景时间、待审大厅或设置时：顶部对齐
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 }
+
+window.switchToTab = switchToTab;
 
 // 全景时间 ➔ 返回控制台
 window.backToDashboard = function() {
@@ -255,8 +282,13 @@ async function loadAllData(showLoading = true) {
 
     updateKPIStats();
     renderDashboard();
+    renderUrgentBanner();
+    renderCalendar();
     renderReviewHall();
     updateReviewBadge();
+
+    // 自动同步本地系统定时提醒
+    notificationService.syncScheduledStages(state.stages, state.applications, parseScheduleDate, getScheduleType);
 
     // 更新设置中的缓存统计
     const cacheTag = document.getElementById('telemetry-cache-count');
@@ -520,6 +552,9 @@ function renderDashboard() {
     // 智能精简时间胶囊文本
     const shortTime = formatShortScheduleTime(scheduleTime);
 
+    const scheduleType = getScheduleType(latest);
+    const scheduleVerb = scheduleType === 'deadline' ? '截止' : scheduleType === 'start' ? '开始' : '';
+
     // 时间胶囊
     let timePillHtml = '';
     if (isOffered) {
@@ -527,10 +562,21 @@ function renderDashboard() {
     } else if (isAwaiting) {
       timePillHtml = `<span class="time-pill-badge pill-gray" title="${escapeHtml(scheduleTime)}">🎯 等待结果</span>`;
     } else if (isScheduled) {
-      timePillHtml = `<span class="time-pill-badge" title="${escapeHtml(scheduleTime)}">🗓️ ${escapeHtml(shortTime)}</span>`;
+      const verbTag = scheduleVerb ? `<span style="font-weight:800;opacity:0.9;">[${scheduleVerb}]</span> ` : '';
+      const badgeStyle = scheduleType === 'deadline' ? 'pill-rose' : 'pill-indigo';
+      timePillHtml = `<span class="time-pill-badge ${badgeStyle}" title="${escapeHtml(scheduleTime)}">🗓️ ${verbTag}${escapeHtml(shortTime)}</span>`;
     } else {
       timePillHtml = `<span class="time-pill-badge pill-gray" title="${escapeHtml(stageName)}">${escapeHtml(shortTime)}</span>`;
     }
+
+    // 检查并列待办环节 (除了 latest 之外还有处于 scheduled 的环节)
+    const otherScheduledStages = item.stages.filter(s => s.id !== (latest ? latest.id : null) && s.stage_status === 'scheduled');
+    const parallelNoticeHtml = otherScheduledStages.length > 0
+      ? `<div style="font-size:0.72rem;color:var(--accent-rose);margin:4px 0 2px 0;font-weight:700;display:flex;align-items:center;gap:4px;">
+          <span>⚡ 并列待办:</span>
+          <span>${escapeHtml(otherScheduledStages.map(s => s.stage_name).join('、'))}</span>
+        </div>`
+      : '';
 
     // Stepper 链路 (简历筛选 -> 笔试 -> 一面 -> 二面 -> HR面 -> 发Offer)
     const stepperHtml = buildStepperHtml(item.stages, stageName, isOffered);
@@ -556,6 +602,8 @@ function renderDashboard() {
         <div class="stepper-pipeline-container">
           ${stepperHtml}
         </div>
+
+        ${parallelNoticeHtml}
 
         <!-- 底部候选人与快捷操作 -->
         <div class="card-bottom-row" onclick="event.stopPropagation()">
@@ -772,6 +820,15 @@ window.openAIDrawer = function(stageId) {
   // 2. 邮件原文参考
   const excerptEl = document.getElementById('drawer-email-raw-snippet');
   excerptEl.textContent = stage.raw_subject ? `主题: ${stage.raw_subject}\n\n${notesText}` : '邮件正文已结构化解析至上方要点';
+
+  const copyEmailBtn = document.getElementById('drawer-btn-copy-email');
+  if (copyEmailBtn) {
+    if (stage.raw_subject) {
+      copyEmailBtn.style.display = 'flex';
+    } else {
+      copyEmailBtn.style.display = 'none';
+    }
+  }
 
   // 3. 腾讯会议代码凭据
   const meetingPill = document.getElementById('drawer-meeting-pill');
@@ -1275,6 +1332,18 @@ function initSettings() {
       }
     });
   }
+
+  // 初始化本地日程推送提醒开关与监听
+  const chkNotif = document.getElementById('chk-notifications-enabled');
+  if (chkNotif) {
+    chkNotif.checked = notificationService.isEnabled();
+    chkNotif.addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      triggerHaptic('light');
+      await notificationService.setEnabled(enabled, state.stages, state.applications, parseScheduleDate, getScheduleType);
+      showToast(enabled ? '🔔 已开启本地日程临期提醒通知' : '🔕 已关闭本地日程通知');
+    });
+  }
 }
 
 window.testSupabaseConnection = async function() {
@@ -1404,3 +1473,400 @@ function formatShortScheduleTime(text) {
   }
   return str;
 }
+
+// ==========================================================================
+// 12. 顶部呼吸感近期紧要待办通报栏 (Urgent Action Banner)
+// ==========================================================================
+function renderUrgentBanner() {
+  const banner = document.getElementById('dashboard-urgent-banner');
+  if (!banner) return;
+
+  if (!supabaseService.getConfig().isConfigured) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  // 1. 提取所有待办环节 (stage_status === 'scheduled')
+  const scheduledStages = state.stages.filter(s => s.stage_status === 'scheduled');
+  const now = new Date();
+  const todayStr = formatCalendarKey(now);
+  const tomorrow = new Date(now.getTime() + 86400000);
+  const tomorrowStr = formatCalendarKey(tomorrow);
+  const urgentHorizon = new Date(now.getTime() + 7 * 86400000);
+
+  const urgentItems = scheduledStages.map(stage => {
+    const app = state.applications.find(a => a.id === stage.application_id);
+    if (!app) return null;
+
+    const date = parseScheduleDate(stage.schedule_time);
+    const scheduleType = getScheduleType(stage);
+    const scheduleVerb = scheduleType === 'deadline' ? '截止' : scheduleType === 'start' ? '开始' : '时间';
+    let timeLabel = stage.schedule_time || '待定时间';
+    let isToday = false;
+    let isTomorrow = false;
+    let isOverdue = false;
+    let urgencyScore = 9999999999999;
+
+    if (date) {
+      const diffMs = date.getTime() - now.getTime();
+      isOverdue = scheduleType === 'deadline' && diffMs < 0;
+      urgencyScore = date.getTime();
+      const dateKey = formatCalendarKey(date);
+      const timePart = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+
+      if (dateKey === todayStr) {
+        isToday = true;
+        const hoursLeft = Math.round(diffMs / (1000 * 3600));
+        if (scheduleType === 'deadline' && diffMs < 0) {
+          timeLabel = `⚠️ 今日已到期 · ${timePart}`;
+        } else if (scheduleType === 'start' && diffMs < 0) {
+          timeLabel = `▶ 今日已开始 · ${timePart}`;
+        } else if (diffMs < 0) {
+          timeLabel = `⏱ 今日时间已到 · ${timePart}`;
+        } else if (hoursLeft <= 1) {
+          timeLabel = scheduleType === 'deadline'
+            ? `🔥 截止 ${timePart} · 不足1小时`
+            : `🔥 ${scheduleVerb} ${timePart} · 1小时内`;
+        } else {
+          timeLabel = `🔥 今日${scheduleVerb} ${timePart} · ${hoursLeft}小时`;
+        }
+      } else if (dateKey === tomorrowStr) {
+        isTomorrow = true;
+        timeLabel = `⏳ 明天${scheduleVerb} ${timePart}`;
+      } else if (isOverdue) {
+        timeLabel = `⚠️ 已逾期 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+      } else if (scheduleType === 'start' && diffMs < 0) {
+        timeLabel = `▶ 已开始 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+      } else {
+        timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日${scheduleVerb} ${timePart}`;
+      }
+    } else return null;
+
+    // 逾期任务始终保留；未逾期任务只展示未来 7 天。
+    if (date.getTime() > urgentHorizon.getTime()) return null;
+
+    return { stage, app, date, timeLabel, isToday, isTomorrow, isOverdue, urgencyScore };
+  }).filter(Boolean).sort((a, b) => a.urgencyScore - b.urgencyScore);
+
+  if (urgentItems.length === 0) {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="urgent-banner-peaceful">
+        <div class="peaceful-left">
+          <span class="peaceful-icon">☕</span>
+          <span class="peaceful-text">未来 7 天暂无紧要待办，状态良好，从容备战！</span>
+        </div>
+        <div class="peaceful-right">
+          <button class="btn-urgent-create" onclick="window.openManualModal('')">＋ 推进新环节</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const visibleUrgentItems = state.urgentBannerExpanded ? urgentItems : urgentItems.slice(0, 3);
+  const hiddenCount = urgentItems.length - visibleUrgentItems.length;
+
+  banner.style.display = 'block';
+  banner.innerHTML = `
+    <div class="urgent-banner-box">
+      <div class="urgent-banner-header">
+        <div class="urgent-header-title-group">
+          <span class="urgent-pulse-indicator" aria-hidden="true"></span>
+          <span class="urgent-header-title">⚡ 近期紧要待办</span>
+          <span class="urgent-counter-pill">${urgentItems.length} 项日程</span>
+        </div>
+        <button type="button" class="btn-urgent-cal-link" onclick="window.switchToTab('view-calendar')">
+          📅 查看完整求职日历 ➔
+        </button>
+      </div>
+      <div class="urgent-cards-list">
+        ${visibleUrgentItems.map(item => {
+          const { stage, app, timeLabel, isToday, isTomorrow, isOverdue } = item;
+          const safeCompany = escapeHtml(app.company || '未知企业');
+          const safeDept = app.department ? escapeHtml(app.department) : '';
+          const safePos = escapeHtml(app.position || '求职岗位');
+          const safeStage = escapeHtml(stage.stage_name || '待办环节');
+          const safeWebsite = (app.company_website || '').trim();
+
+          let cardBadgeClass = 'pill-amber';
+          const scheduleType = getScheduleType(stage);
+          if (isOverdue || (isToday && scheduleType === 'deadline')) cardBadgeClass = 'pill-rose';
+          else if ((isToday || isTomorrow) && scheduleType === 'start') cardBadgeClass = 'pill-indigo';
+
+          const isInvite = safeStage.includes('邀请') || safeStage.includes('宣讲') || safeStage.includes('夏令营');
+          const finishBtnLabel = isInvite ? '✓ 标为已投递' : '✓ 标为已参加';
+
+          return `
+            <div class="urgent-item-card ${isToday ? 'is-today' : ''}" onclick="window.viewCompanyTimeline('${app.id}')">
+              <div class="urgent-item-header">
+                <div class="urgent-item-comp-row">
+                  <strong class="urgent-item-company">${safeCompany}</strong>
+                  ${safeDept ? `<span class="urgent-item-dept">${safeDept}</span>` : ''}
+                </div>
+                <span class="urgent-stage-pill pill-indigo">${safeStage}</span>
+              </div>
+              <div class="urgent-item-pos" title="${safePos}">${safePos}</div>
+              <div class="urgent-item-timerow">
+                <span class="urgent-time-badge ${cardBadgeClass}">${timeLabel}</span>
+              </div>
+              <div class="urgent-item-actions" onclick="event.stopPropagation()">
+                <button type="button" class="btn-urgent-action btn-urgent-email" onclick="window.copyEmailSubjectAndNotice('${escapeHtml(stage.raw_subject || '')}', '${safeCompany}')" title="快速复制邮件主题查找原件">
+                  ✉️ 查邮件
+                </button>
+                ${safeWebsite ? `
+                  <a class="btn-urgent-action btn-urgent-site" href="${escapeHtml(safeWebsite)}" target="_blank" rel="noopener noreferrer" title="前往企业官方招聘网站">
+                    🌐 官网 ↗
+                  </a>
+                ` : ''}
+                <button type="button" class="btn-urgent-action btn-urgent-done" onclick="window.markStageComplete('${stage.id}')" title="标记已参加/已完成并进入等待结果">
+                  ${finishBtnLabel}
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      ${urgentItems.length > 3 ? `
+        <button type="button" class="btn-urgent-expand" onclick="window.toggleUrgentBannerExpanded()">
+          ${state.urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项待办 ↓`}
+        </button>
+      ` : ''}
+    </div>
+  `;
+}
+
+// ==========================================================================
+// 13. 求职日历大厅与当日事项核心逻辑 (Calendar View & Daily Agenda)
+// ==========================================================================
+function getCalendarEntries() {
+  return state.stages.map(stage => {
+    if (['pending', 'ignored'].includes(stage.stage_status)) return null;
+    const date = parseScheduleDate(stage.schedule_time);
+    const app = state.applications.find(item => item.id === stage.application_id);
+    return date && app ? { stage, app, date, key: formatCalendarKey(date) } : null;
+  }).filter(Boolean).sort((a, b) => a.date - b.date);
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calendar-days-grid');
+  const title = document.getElementById('calendar-month-title');
+  if (!grid || !title) return;
+
+  const year = state.calendarCursor.getFullYear();
+  const month = state.calendarCursor.getMonth();
+  title.textContent = `${year}年${month + 1}月`;
+
+  const firstDay = new Date(year, month, 1);
+  const startDay = (firstDay.getDay() + 6) % 7; // 周一为 0
+  const startDate = new Date(year, month, 1 - startDay);
+
+  const entries = getCalendarEntries();
+  const todayKey = formatCalendarKey(new Date());
+
+  let html = '';
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+    const key = formatCalendarKey(date);
+    const items = entries.filter(item => item.key === key);
+    const isOutside = date.getMonth() !== month;
+    const isToday = key === todayKey;
+    const isSelected = key === state.selectedCalendarKey;
+
+    let dotsHtml = '';
+    if (items.length > 0) {
+      const topItems = items.slice(0, 3);
+      dotsHtml = `<div class="cal-dots-wrap">${topItems.map(item => {
+        const cat = getStageProgressCategory(item.app, item.stage);
+        return `<span class="cal-event-dot dot-${cat}"></span>`;
+      }).join('')}</div>`;
+    }
+
+    html += `
+      <button type="button" class="cal-day-cell ${isOutside ? 'is-outside' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" onclick="window.selectCalendarDay('${key}')">
+        <span class="cal-day-number">${date.getDate()}</span>
+        ${dotsHtml}
+      </button>
+    `;
+  }
+
+  grid.innerHTML = html;
+  renderCalendarAgenda(entries);
+}
+
+function renderCalendarAgenda(entries = getCalendarEntries()) {
+  const list = document.getElementById('calendar-agenda-list');
+  const badge = document.getElementById('calendar-selected-date-badge');
+  const countBadge = document.getElementById('calendar-selected-count-badge');
+
+  const sheetList = document.getElementById('calendar-agenda-sheet-list');
+  const sheetTitle = document.getElementById('agenda-sheet-date-title');
+  const sheetCountTag = document.getElementById('agenda-sheet-count-tag');
+
+  const selected = parseScheduleDate(state.selectedCalendarKey);
+  const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const dateFormatted = selected
+    ? `${selected.getMonth() + 1}月${selected.getDate()}日 ${weekDays[selected.getDay()]}`
+    : state.selectedCalendarKey;
+
+  if (badge) badge.textContent = dateFormatted;
+  if (sheetTitle) sheetTitle.textContent = dateFormatted;
+
+  const items = entries.filter(item => item.key === state.selectedCalendarKey);
+  const countText = `${items.length} 项安排`;
+  if (countBadge) countBadge.textContent = countText;
+  if (sheetCountTag) sheetCountTag.textContent = countText;
+
+  if (items.length === 0) {
+    const emptyHtml = `
+      <div class="agenda-empty-card">
+        <div class="agenda-empty-icon">☕</div>
+        <div class="agenda-empty-title">当天没有求职日程安排</div>
+        <div class="agenda-empty-sub">可以安心复盘、准备刷题或投递新岗位</div>
+      </div>
+    `;
+    if (list) list.innerHTML = emptyHtml;
+    if (sheetList) sheetList.innerHTML = emptyHtml;
+    return;
+  }
+
+  const itemsHtml = items.map(item => {
+    const { stage, app, date } = item;
+    const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    const scheduleType = getScheduleType(stage);
+    const typeTagLabel = scheduleType === 'deadline' ? '截止' : scheduleType === 'start' ? '开始' : '时间';
+    const typeClass = `agenda-type-${scheduleType}`;
+    const isScheduled = stage.stage_status === 'scheduled';
+    const isAwaiting = stage.stage_status === 'awaiting_result';
+    const isOffer = stage.stage_status === 'offered';
+
+    let statusText = '已完成';
+    let statusPillClass = 'pill-gray';
+    if (isScheduled) {
+      statusText = '待进行';
+      statusPillClass = 'pill-indigo';
+    } else if (isAwaiting) {
+      statusText = '等待结果';
+      statusPillClass = 'pill-amber';
+    } else if (isOffer) {
+      statusText = '已发Offer';
+      statusPillClass = 'pill-emerald';
+    }
+
+    return `
+      <div class="agenda-item-card" onclick="window.closeCalendarAgendaSheetDirect(); window.viewCompanyTimeline('${app.id}')">
+        <div class="agenda-left-info">
+          <div class="agenda-item-time-row">
+            <span class="agenda-time-text">⏱ ${time}</span>
+            <span class="agenda-type-tag ${typeClass}">[${typeTagLabel}]</span>
+          </div>
+          <div class="agenda-company-title">${escapeHtml(app.company)} · ${escapeHtml(stage.stage_name)}</div>
+          <div class="agenda-stage-subtitle">${app.position ? escapeHtml(app.position) : '求职岗位'}${app.department ? ` · ${escapeHtml(app.department)}` : ''}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <span class="bento-status-tag ${statusPillClass}">${statusText}</span>
+          <span style="font-size:0.72rem; color:var(--accent-indigo); font-weight:700;">查看档案 ➔</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (list) list.innerHTML = itemsHtml;
+  if (sheetList) sheetList.innerHTML = itemsHtml;
+}
+
+// ==========================================================================
+// 14. 移动端快捷事件响应 (日历翻页、选择、弹出悬浮框、邮件主题复制)
+// ==========================================================================
+window.changeCalendarMonth = function(offset) {
+  state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + offset, 1);
+  state.selectedCalendarKey = formatCalendarKey(state.calendarCursor);
+  triggerHaptic('light');
+  renderCalendar();
+};
+
+window.goToCalendarToday = function() {
+  const today = new Date();
+  state.calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+  state.selectedCalendarKey = formatCalendarKey(today);
+  triggerHaptic('medium');
+  renderCalendar();
+  window.openCalendarAgendaSheet();
+};
+
+window.selectCalendarDay = function(key) {
+  state.selectedCalendarKey = key;
+  triggerHaptic('medium');
+  renderCalendar();
+  window.openCalendarAgendaSheet();
+};
+
+window.openCalendarAgendaSheet = function() {
+  const overlay = document.getElementById('calendar-agenda-overlay');
+  if (!overlay) return;
+  overlay.classList.add('active');
+  state.isCalendarSheetOpen = true;
+};
+
+window.closeCalendarAgendaSheet = function(e) {
+  if (e && e.target && e.target.id !== 'calendar-agenda-overlay') return;
+  window.closeCalendarAgendaSheetDirect();
+};
+
+window.closeCalendarAgendaSheetDirect = function() {
+  const overlay = document.getElementById('calendar-agenda-overlay');
+  if (overlay) overlay.classList.remove('active');
+  state.isCalendarSheetOpen = false;
+};
+
+window.openManualModalForCalendarDay = function() {
+  window.closeCalendarAgendaSheetDirect();
+  openManualModal('');
+  setTimeout(() => {
+    const timeInput = document.getElementById('m-time');
+    if (timeInput && state.selectedCalendarKey) {
+      timeInput.value = `${state.selectedCalendarKey} 10:00`;
+    }
+  }, 50);
+  triggerHaptic('light');
+  showToast(`📅 已预填 ${state.selectedCalendarKey} 日期`);
+};
+
+window.toggleUrgentBannerExpanded = function() {
+  state.urgentBannerExpanded = !state.urgentBannerExpanded;
+  triggerHaptic('light');
+  renderUrgentBanner();
+};
+
+window.copyEmailSubjectAndNotice = async function(rawSubject, company = '') {
+  triggerHaptic('medium');
+  if (!rawSubject) {
+    showToast(`✉️ ${company ? company + ' ' : ''}暂无原始邮件主题记录`);
+    return;
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(rawSubject);
+      showToast(`📋 已复制邮件主题：《${rawSubject.slice(0, 18)}…》，可前往邮箱快速搜索原件！`);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = rawSubject;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast(`📋 已复制主题：《${rawSubject.slice(0, 18)}…》`);
+    }
+  } catch (e) {
+    showToast(`📋 邮件主题：《${rawSubject}》`);
+  }
+};
+
+window.copyCurrentDrawerEmailSubject = function() {
+  const stage = state.stages.find(s => s.id === state.currentDrawerStageId);
+  const app = stage ? state.applications.find(a => a.id === stage.application_id) : null;
+  const company = app ? app.company : '';
+  window.copyEmailSubjectAndNotice(stage ? stage.raw_subject : '', company);
+};
+
+
