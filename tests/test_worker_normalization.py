@@ -1,6 +1,6 @@
 import unittest
 
-from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_stage_name
+from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name
 
 
 class WorkerNormalizationTests(unittest.TestCase):
@@ -20,6 +20,12 @@ class WorkerNormalizationTests(unittest.TestCase):
     def test_combined_stage_uses_current_action(self):
         self.assertEqual(normalize_extracted_stage_name("宣讲会及在线笔试"), "在线笔试")
         self.assertEqual(normalize_extracted_stage_name("校园宣讲会"), "宣讲会")
+
+    def test_schedule_type_normalization_and_legacy_fallback(self):
+        self.assertEqual(normalize_extracted_schedule_type("start", "在线笔试", "2026-09-05 19:00"), "start")
+        self.assertEqual(normalize_extracted_schedule_type("截止前完成", "综合测评", "2026-09-05 18:00"), "deadline")
+        self.assertEqual(normalize_extracted_schedule_type(None, "技术一面", "2026-09-05 14:00"), "start")
+        self.assertEqual(normalize_extracted_schedule_type(None, "综合测评", "待定"), "unknown")
 
     def test_company_website_only_accepts_web_urls(self):
         self.assertEqual(normalize_company_website("www.example.com"), "https://www.example.com")

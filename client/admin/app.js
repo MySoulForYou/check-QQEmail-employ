@@ -104,6 +104,7 @@ let currentSearchQuery = '';
 let currentReviewCategory = 'all';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedCalendarKey = formatCalendarKey(new Date());
+let urgentBannerExpanded = false;
 
 // ==========================================================================
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
@@ -407,6 +408,35 @@ function getCompactStageStatus(stage, meta) {
     return `${type} · ${state}`;
 }
 
+function getScheduleType(stage) {
+    const explicit = String(stage?.schedule_type || '').toLowerCase();
+    if (['start', 'deadline'].includes(explicit)) return explicit;
+    const time = String(stage?.schedule_time || '').trim();
+    if (!time || time === '待定') return 'unknown';
+    const name = String(stage?.stage_name || '');
+    if (/(面试|一面|二面|终面|HR面|宣讲)/i.test(name)) return 'start';
+    if (/(测评|材料|提交|网申|笔试)/.test(name)) return 'deadline';
+    return 'unknown';
+}
+
+function getScheduleTypeLabel(stage) {
+    const type = getScheduleType(stage);
+    if (type === 'start') return '开始时间';
+    if (type === 'deadline') return '截止时间';
+    return '时间';
+}
+
+function formatDashboardScheduleTime(value) {
+    const date = parseScheduleDate(value);
+    if (!date) return escapeHTML(value || '时间待定');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    const year = date.getFullYear() === new Date().getFullYear() ? '' : `${date.getFullYear()}/`;
+    return `${year}${month}/${day} ${hour}:${minute}`;
+}
+
 // ==========================================================================
 // 3. 求职推进管道链路生成器 (动态 Progressive Pipeline：按 seq 升序展示)
 // ==========================================================================
@@ -417,10 +447,20 @@ function generatePipelineHTML(stages) {
 
     // 按 seq 升序排序 (从最初网申到最新环节)
     const sorted = [...stages].sort((a, b) => (a.seq || 1) - (b.seq || 1));
-    const latestStage = sorted[sorted.length - 1];
+    const maxSeq = Math.max(...sorted.map(s => s.seq || 1));
+    const groups = [];
+    sorted.forEach(stage => {
+        const seq = stage.seq || 1;
+        let group = groups.find(item => item.seq === seq);
+        if (!group) {
+            group = { seq, stages: [] };
+            groups.push(group);
+        }
+        group.stages.push(stage);
+    });
 
-    const stepsHTML = sorted.map((s, idx) => {
-        const isLatest = idx === sorted.length - 1;
+    const renderStep = (s) => {
+        const isLatest = (s.seq || 1) === maxSeq;
         const meta = getStageStatusMeta(s);
         let stageLabel = s.stage_name || '环节';
 
@@ -457,6 +497,13 @@ function generatePipelineHTML(stages) {
                 <span class="step-name">${escapeHTML(stageLabel)}</span>
             </div>
         `;
+    };
+
+    const stepsHTML = groups.map(group => {
+        const content = group.stages.map(renderStep).join('');
+        return group.stages.length > 1
+            ? `<div class="pipeline-parallel-group" title="并列环节，状态独立">${content}</div>`
+            : content;
     });
 
     return `
@@ -1090,12 +1137,15 @@ function renderUrgentBanner() {
     const todayStr = formatCalendarKey(now);
     const tomorrow = new Date(now.getTime() + 86400000);
     const tomorrowStr = formatCalendarKey(tomorrow);
+    const urgentHorizon = new Date(now.getTime() + 7 * 86400000);
 
     const urgentItems = scheduledStages.map(stage => {
         const app = allApplications.find(a => a.id === stage.application_id);
         if (!app) return null;
 
         const date = parseScheduleDate(stage.schedule_time);
+        const scheduleType = getScheduleType(stage);
+        const scheduleVerb = scheduleType === 'deadline' ? '截止' : scheduleType === 'start' ? '开始' : '时间';
         let timeLabel = stage.schedule_time || '待定时间';
         let isToday = false;
         let isTomorrow = false;
@@ -1104,6 +1154,7 @@ function renderUrgentBanner() {
 
         if (date) {
             const diffMs = date.getTime() - now.getTime();
+            isOverdue = scheduleType === 'deadline' && diffMs < 0;
             urgencyScore = date.getTime();
             const dateKey = formatCalendarKey(date);
             const timePart = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -1111,24 +1162,33 @@ function renderUrgentBanner() {
             if (dateKey === todayStr) {
                 isToday = true;
                 const hoursLeft = Math.round(diffMs / (1000 * 3600));
-                if (diffMs < 0) {
+                if (scheduleType === 'deadline' && diffMs < 0) {
                     timeLabel = `⚠️ 今日已到期 · ${timePart}`;
-                    isOverdue = true;
+                } else if (scheduleType === 'start' && diffMs < 0) {
+                    timeLabel = `▶ 今日已开始 · ${timePart}`;
+                } else if (diffMs < 0) {
+                    timeLabel = `⏱ 今日时间已到 · ${timePart}`;
                 } else if (hoursLeft <= 1) {
-                    timeLabel = `🔥 今日 ${timePart} · 1小时内开始`;
+                    timeLabel = scheduleType === 'deadline'
+                        ? `🔥 截止 ${timePart} · 不足1小时`
+                        : `🔥 ${scheduleVerb} ${timePart} · 1小时内`;
                 } else {
-                    timeLabel = `🔥 今日 ${timePart} · 倒计时 ${hoursLeft}小时`;
+                    timeLabel = `🔥 今日${scheduleVerb} ${timePart} · ${hoursLeft}小时`;
                 }
             } else if (dateKey === tomorrowStr) {
                 isTomorrow = true;
-                timeLabel = `⏳ 明天 ${timePart}`;
+                timeLabel = `⏳ 明天${scheduleVerb} ${timePart}`;
+            } else if (isOverdue) {
+                timeLabel = `⚠️ 已逾期 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+            } else if (scheduleType === 'start' && diffMs < 0) {
+                timeLabel = `▶ 已开始 · ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
             } else {
-                timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日 ${timePart}`;
+                timeLabel = `📅 ${date.getMonth() + 1}月${date.getDate()}日${scheduleVerb} ${timePart}`;
             }
-        } else {
-            urgencyScore = now.getTime() + 86400000 * 30;
-            timeLabel = '⏳ 时间待定 · 待推进';
-        }
+        } else return null;
+
+        // 逾期任务始终保留；未逾期任务只展示未来 7 天。
+        if (date.getTime() > urgentHorizon.getTime()) return null;
 
         return { stage, app, date, timeLabel, isToday, isTomorrow, isOverdue, urgencyScore };
     }).filter(Boolean).sort((a, b) => a.urgencyScore - b.urgencyScore);
@@ -1139,7 +1199,7 @@ function renderUrgentBanner() {
             <div class="urgent-banner-peaceful">
                 <div class="peaceful-left">
                     <span class="peaceful-icon">☕</span>
-                    <span class="peaceful-text">近期 48 小时暂无紧要笔面试日程，状态良好，从容备战！</span>
+                    <span class="peaceful-text">未来 7 天暂无紧要待办，状态良好，从容备战！</span>
                 </div>
                 <div class="peaceful-right">
                     <button class="btn-urgent-create" onclick="openManualStageModal()">＋ 推进新环节</button>
@@ -1148,6 +1208,9 @@ function renderUrgentBanner() {
         `;
         return;
     }
+
+    const visibleUrgentItems = urgentBannerExpanded ? urgentItems : urgentItems.slice(0, 3);
+    const hiddenCount = urgentItems.length - visibleUrgentItems.length;
 
     banner.style.display = 'block';
     banner.innerHTML = `
@@ -1163,7 +1226,7 @@ function renderUrgentBanner() {
                 </button>
             </div>
             <div class="urgent-cards-scroll">
-                ${urgentItems.map(item => {
+                ${visibleUrgentItems.map(item => {
                     const { stage, app, timeLabel, isToday, isTomorrow, isOverdue } = item;
                     const meta = getStageStatusMeta(stage, app);
                     const safeCompany = escapeHTML(app.company || '未知企业');
@@ -1173,8 +1236,9 @@ function renderUrgentBanner() {
                     const safeWebsite = getCompanyWebsite(app);
 
                     let cardBadgeClass = 'pill-amber';
-                    if (isToday) cardBadgeClass = 'pill-rose';
-                    else if (isTomorrow) cardBadgeClass = 'pill-indigo';
+                    const scheduleType = getScheduleType(stage);
+                    if (isOverdue || (isToday && scheduleType === 'deadline')) cardBadgeClass = 'pill-rose';
+                    else if ((isToday || isTomorrow) && scheduleType === 'start') cardBadgeClass = 'pill-indigo';
 
                     const isInvite = safeStage.includes('邀请') || safeStage.includes('宣讲') || safeStage.includes('夏令营');
                     const finishBtnLabel = isInvite ? '✓ 标为已投递' : '✓ 标为已参加';
@@ -1209,8 +1273,18 @@ function renderUrgentBanner() {
                     `;
                 }).join('')}
             </div>
+            ${urgentItems.length > 3 ? `
+                <button type="button" class="btn-urgent-expand" onclick="toggleUrgentBannerExpanded()">
+                    ${urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项 ↓`}
+                </button>
+            ` : ''}
         </div>
     `;
+}
+
+function toggleUrgentBannerExpanded() {
+    urgentBannerExpanded = !urgentBannerExpanded;
+    renderUrgentBanner();
 }
 
 // ==========================================================================
@@ -1311,10 +1385,26 @@ function renderDashboard() {
         const safePos = escapeHTML(app.position || '校招投递岗位');
         const companyNameHTML = renderCompanyName(app, safeCompany, 'comp-title');
 
-        let timeFormatted = '待定';
-        if (latestStage && latestStage.schedule_time && latestStage.schedule_time !== '待定') {
-            timeFormatted = escapeHTML(latestStage.schedule_time);
-        }
+        const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+        const latestStageGroup = stages.filter(stage => (stage.seq || 1) === latestSeq);
+        const timeHTML = latestStageGroup.length > 0 ? latestStageGroup.map(stage => {
+            const scheduleType = getScheduleType(stage);
+            const typeLabel = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '待定';
+            const timeValue = stage.schedule_time && stage.schedule_time !== '待定'
+                ? formatDashboardScheduleTime(stage.schedule_time)
+                : '时间待定';
+            return `
+                <div class="key-time-item">
+                    <span class="key-time-type key-time-type-${scheduleType}">${typeLabel}</span>
+                    <span class="time-text">${timeValue}</span>
+                </div>
+            `;
+        }).join('') : `
+            <div class="key-time-item">
+                <span class="key-time-type key-time-type-unknown">待定</span>
+                <span class="time-text">时间待定</span>
+            </div>
+        `;
 
         const pipelineHTML = generatePipelineHTML(stages);
 
@@ -1340,7 +1430,7 @@ function renderDashboard() {
                     </span>
                 </td>
                 <td>
-                    <span class="time-text">${timeFormatted}</span>
+                    <div class="key-time-list">${timeHTML}</div>
                 </td>
             </tr>
         `;
@@ -1447,6 +1537,8 @@ function openTimelineDrawer(appId) {
     // 🎯 核心升级：按 seq DESC 倒序排列（最新进展在最上方！）
     const reverseStages = [...stages].sort((a, b) => (b.seq || 1) - (a.seq || 1));
     const latestStage = reverseStages[0];
+    const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+    const latestStages = reverseStages.filter(stage => (stage.seq || 1) === latestSeq);
     const latestMeta = getStageStatusMeta(latestStage, app);
 
     drawerTitle.dataset.appId = app.id;
@@ -1454,7 +1546,7 @@ function openTimelineDrawer(appId) {
     drawerBadge.className = `badge-tag ${latestMeta.badgeClass}`;
     drawerBadge.textContent = latestMeta.badgeText;
     drawerPos.textContent = `投递岗位: ${app.position || '校招应聘'}`;
-    drawerCount.textContent = `共 ${stages.length} 轮应聘进展`;
+    drawerCount.textContent = `共 ${new Set(stages.map(stage => stage.seq || 1)).size} 轮·${stages.length} 个环节`;
 
     // 渲染垂直倒序发光时间轴
     if (reverseStages.length === 0) {
@@ -1465,7 +1557,8 @@ function openTimelineDrawer(appId) {
         `;
     } else {
         timelineContent.innerHTML = reverseStages.map((s, index) => {
-            const isLatest = index === 0; // 倒序排布下，第 0 项即为当前最新进展！
+            const isLatest = (s.seq || 1) === latestSeq;
+            const isParallel = latestStages.length > 1 && isLatest;
             const meta = getStageStatusMeta(s, app);
             const safeType = escapeHTML(s.stage_name || '环节');
             const safeTime = escapeHTML(s.schedule_time || '时间待定');
@@ -1493,9 +1586,11 @@ function openTimelineDrawer(appId) {
                         <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、公司官网或备注">
                             ✏️ 修正
                         </button>
-                        <button class="btn btn-outline btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#64748B;" onclick="rollbackCurrentStage('${app.id}', '${s.id}')" title="手误推进或错发邮件：撤销当前轮次并无缝回退到上一轮">
-                            ↩ 撤销本轮
-                        </button>
+                        ${isParallel ? '' : `
+                            <button class="btn btn-outline btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#64748B;" onclick="rollbackCurrentStage('${app.id}', '${s.id}')" title="手误推进或错发邮件：撤销当前轮次并无缝回退到上一轮">
+                                ↩ 撤销本轮
+                            </button>
+                        `}
                     `;
                 } else if (s.stage_status === 'awaiting_result') {
                     actionButtonsHTML = `
@@ -1524,7 +1619,7 @@ function openTimelineDrawer(appId) {
             }
 
             return `
-                <div class="timeline-item ${isLatest ? 'is-latest' : ''}">
+                <div class="timeline-item ${isLatest ? 'is-latest' : ''} ${isParallel ? 'is-parallel' : ''}">
                     <div class="timeline-node">
                         ${isLatest ? '•' : meta.nodeIcon}
                     </div>
@@ -1532,13 +1627,13 @@ function openTimelineDrawer(appId) {
                         <div class="timeline-header">
                             <div class="timeline-stage-name">
                                 ${meta.icon} 第${s.seq || 1}轮 · ${safeType}
-                                ${isLatest ? '<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">最新进展</span>' : ''}
+                                ${isLatest ? `<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">${isParallel ? '并列进行中' : '最新进展'}</span>` : ''}
                             </div>
                             <span class="timeline-timestamp">${dateStr}</span>
                         </div>
 
                         <div class="timeline-status-row">
-                            <span style="color:var(--text-muted);font-size:0.85rem;">约定时间: <strong>${safeTime}</strong></span>
+                            <span style="color:var(--text-muted);font-size:0.85rem;">${getScheduleTypeLabel(s)}: <strong>${safeTime}</strong></span>
                             <div style="display:inline-flex;align-items:center;gap:6px;">
                                 <span class="badge-tag ${meta.badgeClass}" style="font-size:0.75rem;">${meta.timelineStatusText}</span>
                                 ${actionButtonsHTML}
@@ -2412,6 +2507,8 @@ function openManualStageModal(targetAppId) {
     const notesInput = document.getElementById('manual-stage-notes');
     const nextExpInput = document.getElementById('manual-next-exp');
     const msgEl = document.getElementById('manual-stage-msg');
+    const positionWrap = document.getElementById('manual-stage-position-wrap');
+    const positionSelect = document.getElementById('manual-stage-position');
 
     if (!modal) return;
 
@@ -2423,6 +2520,8 @@ function openManualStageModal(targetAppId) {
             if (deptInput) deptInput.value = app.department || '';
             if (jobInput) jobInput.value = app.position || '';
             if (titleEl) titleEl.textContent = `🚀 推进「${app.company}」下一环节`;
+            if (positionWrap) positionWrap.style.display = 'block';
+            if (positionSelect) positionSelect.value = 'next';
         }
     } else {
         delete modal.dataset.appId;
@@ -2430,10 +2529,13 @@ function openManualStageModal(targetAppId) {
         if (deptInput) deptInput.value = '';
         if (jobInput) jobInput.value = '';
         if (titleEl) titleEl.textContent = '手动添加投递企业与环节';
+        if (positionWrap) positionWrap.style.display = 'none';
     }
 
     if (typeInput) typeInput.value = '';
     if (timeInput) timeInput.value = '';
+    const scheduleTypeInput = document.getElementById('manual-schedule-type');
+    if (scheduleTypeInput) scheduleTypeInput.value = 'deadline';
     if (notesInput) notesInput.value = '';
     if (notesInput && targetAppId) {
         const app = allApplications.find(item => item.id === targetAppId);
@@ -2457,6 +2559,10 @@ function selectStagePreset(presetName) {
     if (!typeInput) return;
 
     typeInput.value = presetName;
+    const scheduleTypeInput = document.getElementById('manual-schedule-type');
+    if (scheduleTypeInput) {
+        scheduleTypeInput.value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(presetName) ? 'start' : 'deadline';
+    }
 
     // 智能自动填充默认预期
     if (nextExpInput && !nextExpInput.value) {
@@ -2494,6 +2600,8 @@ async function submitManualStage() {
     const nextExp = (document.getElementById('manual-next-exp')?.value || '').trim();
     const statusRadio = document.querySelector('input[name="manual-status"]:checked');
     const initialStatus = statusRadio ? statusRadio.value : 'approved';
+    const scheduleType = document.getElementById('manual-schedule-type')?.value || 'unknown';
+    const positionMode = document.getElementById('manual-stage-position')?.value || 'next';
     const msgEl = document.getElementById('manual-stage-msg');
     const submitBtn = document.getElementById('btn-submit-manual-stage');
 
@@ -2542,7 +2650,13 @@ async function submitManualStage() {
         if (targetApp) {
             // 已有企业：计算下一轮 seq
             const existingStages = (appStagesMap[targetApp.id] || []).filter(s => s.stage_status !== 'ignored');
-            nextSeq = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.seq || 1)) + 1 : 1;
+            const maxSeq = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.seq || 1)) : 0;
+            nextSeq = positionMode === 'parallel' && maxSeq > 0 ? maxSeq : maxSeq + 1;
+            const currentGroupNames = existingStages
+                .filter(stage => (stage.seq || 1) === nextSeq)
+                .map(stage => stage.stage_name)
+                .filter(Boolean);
+            const currentStageName = [...new Set([...currentGroupNames, stageType])].join(' / ');
 
             // 将该企业下的前序非忽略环节标记为 passed (已通过)
             await supabase
@@ -2552,7 +2666,8 @@ async function submitManualStage() {
                     updated_at: new Date().toISOString()
                 })
                 .eq('application_id', targetApp.id)
-                .neq('stage_status', 'ignored');
+                .neq('stage_status', 'ignored')
+                .lt('seq', nextSeq);
 
             // 更新主表状态
             await supabase
@@ -2561,7 +2676,7 @@ async function submitManualStage() {
                     company: compName,
                     department: deptName || null,
                     position: jobSubject || targetApp.position,
-                    current_stage_name: stageType,
+                    current_stage_name: currentStageName,
                     overall_status: (stageType.includes('Offer') || stageType.includes('录用')) ? 'offered' : 'active',
                     updated_at: new Date().toISOString()
                 })
@@ -2606,6 +2721,7 @@ async function submitManualStage() {
             stage_name: stageType,
             stage_status: stageTargetStatus,
             schedule_time: stageTime || '待定',
+            schedule_type: stageTime ? scheduleType : 'unknown',
             meeting_info: companyWebsite,
             next_expectation: nextExp || '',
             notes: '',
@@ -2685,9 +2801,27 @@ function openEditStageModal(stageId) {
 
     // 填充约定时间与公司官网
     document.getElementById('edit-schedule-time').value = stage.schedule_time || '';
+    document.getElementById('edit-schedule-type').value = getScheduleType(stage);
     document.getElementById('edit-meeting-info').value = stage.meeting_info || '';
     document.getElementById('edit-next-expectation').value = stage.next_expectation || '';
     document.getElementById('edit-stage-notes').value = stage.notes || '';
+
+    const positionSelect = document.getElementById('edit-stage-position');
+    if (positionSelect) {
+        const siblings = (appStagesMap[stage.application_id] || [])
+            .filter(item => item.id !== stage.id && item.stage_status !== 'ignored')
+            .sort((a, b) => (a.seq || 1) - (b.seq || 1));
+        const grouped = new Map();
+        siblings.forEach(item => {
+            const seq = item.seq || 1;
+            if (!grouped.has(seq)) grouped.set(seq, []);
+            grouped.get(seq).push(item.stage_name || '环节');
+        });
+        positionSelect.innerHTML = `<option value="${stage.seq || 1}">保持当前位置（第${stage.seq || 1}轮）</option>`
+            + [...grouped.entries()].filter(([seq]) => seq !== (stage.seq || 1)).map(([seq, names]) =>
+                `<option value="${seq}">与「${escapeHTML(names.join(' / '))}」并列（第${seq}轮）</option>`
+            ).join('');
+    }
 
     const msgEl = document.getElementById('edit-stage-msg');
     if (msgEl) msgEl.textContent = '';
@@ -2704,6 +2838,10 @@ function selectEditStagePreset(presetName) {
     const stageInput = document.getElementById('edit-stage-name');
     const nextExpInput = document.getElementById('edit-next-expectation');
     if (stageInput) stageInput.value = presetName;
+    const scheduleTypeInput = document.getElementById('edit-schedule-type');
+    if (scheduleTypeInput) {
+        scheduleTypeInput.value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(presetName) ? 'start' : 'deadline';
+    }
 
     if (nextExpInput && !nextExpInput.value) {
         if (presetName.includes('网申')) nextExpInput.value = '等待简历初筛结果';
@@ -2731,9 +2869,11 @@ async function submitEditStage() {
     const stageName = (document.getElementById('edit-stage-name')?.value || '').trim();
     const statusVal = document.querySelector('input[name="edit-stage-status"]:checked')?.value || 'scheduled';
     const scheduleTime = (document.getElementById('edit-schedule-time')?.value || '').trim();
+    const scheduleType = document.getElementById('edit-schedule-type')?.value || 'unknown';
     const meetingInfo = (document.getElementById('edit-meeting-info')?.value || '').trim();
     const nextExp = (document.getElementById('edit-next-expectation')?.value || '').trim();
     const notes = (document.getElementById('edit-stage-notes')?.value || '').trim();
+    const targetSeq = Number(document.getElementById('edit-stage-position')?.value) || 1;
     const msgEl = document.getElementById('edit-stage-msg');
     const saveBtn = document.getElementById('btn-save-edit-stage');
 
@@ -2779,6 +2919,16 @@ async function submitEditStage() {
             stageDbStatus = 'ignored';
         }
 
+        const existingForApp = (appStagesMap[appId] || []).filter(stage => stage.stage_status !== 'ignored');
+        const hypothetical = existingForApp.map(stage => stage.id === stageId
+            ? { ...stage, seq: targetSeq, stage_name: stageName }
+            : stage);
+        const maxSeq = hypothetical.length ? Math.max(...hypothetical.map(stage => stage.seq || 1)) : targetSeq;
+        const currentStageName = [...new Set(hypothetical
+            .filter(stage => (stage.seq || 1) === maxSeq)
+            .map(stage => stage.stage_name)
+            .filter(Boolean))].join(' / ') || stageName;
+
         // 2. 更新 applications 主表
         const { data: updatedApps, error: appErr } = await supabase
             .from('applications')
@@ -2786,7 +2936,7 @@ async function submitEditStage() {
                 company: compName,
                 department: deptName || '',
                 position: posName || '未指定岗位',
-                current_stage_name: stageName,
+                current_stage_name: currentStageName,
                 overall_status: overallStatus,
                 updated_at: new Date().toISOString()
             })
@@ -2806,10 +2956,12 @@ async function submitEditStage() {
                     stage_name: stageName,
                     stage_status: stageDbStatus,
                     schedule_time: scheduleTime || '待定',
+                    schedule_type: scheduleTime ? scheduleType : 'unknown',
                     // 历史数据中该字段可能同时包含地点和报名链接，保留用户原文。
                     meeting_info: meetingInfo,
                     next_expectation: nextExp || '',
                     notes: notes || '',
+                    seq: targetSeq,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', stageId);

@@ -1163,6 +1163,26 @@ body {
   margin-bottom: 20px;
 }
 
+.timeline-parallel-item .bubble-porcelain-card {
+  border-left: 4px solid #A78BFA;
+}
+
+.form-item-m select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #E2D9CF;
+  border-radius: 12px;
+  background: #FFFFFF;
+  color: var(--text-main);
+  font: inherit;
+}
+
+.field-hint {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
 /* 双同心圆拟物发光节点 */
 .timeline-concentric-dot {
   position: absolute;

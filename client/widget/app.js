@@ -302,7 +302,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const compDisplay = app.department ? `${app.company} · ${app.department}` : (app.company || '未知企业');
         const safeCompany = escapeHTML(compDisplay);
         const safeType = escapeHTML(taskType);
-        const safeTime = escapeHTML(task.schedule_time || '待定');
+        const explicitScheduleType = String(task.schedule_type || '').toLowerCase();
+        const inferredScheduleType = /(面试|一面|二面|终面|HR面|宣讲)/i.test(taskType) ? 'start'
+            : /(测评|材料|提交|网申|笔试)/.test(taskType) ? 'deadline' : 'unknown';
+        const scheduleType = ['start', 'deadline'].includes(explicitScheduleType) ? explicitScheduleType : inferredScheduleType;
+        const schedulePrefix = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '时间';
+        const safeTime = escapeHTML(task.schedule_time && task.schedule_time !== '待定'
+            ? `${schedulePrefix}：${task.schedule_time}` : '时间待定');
         
         let completedTimeText = '';
         if (isHistory && (task.updated_at || task.created_at)) {

@@ -317,6 +317,17 @@ function getStageProgressCategory(app, latestStage) {
   return 'other';
 }
 
+function getScheduleType(stage) {
+  const explicit = String(stage?.schedule_type || '').toLowerCase();
+  if (explicit === 'start' || explicit === 'deadline') return explicit;
+  const time = String(stage?.schedule_time || '').trim();
+  if (!time || time === '待定') return 'unknown';
+  const name = String(stage?.stage_name || '');
+  if (/(面试|一面|二面|终面|HR面|宣讲)/i.test(name)) return 'start';
+  if (/(测评|材料|提交|网申|笔试)/.test(name)) return 'deadline';
+  return 'unknown';
+}
+
 function updateKPIStats() {
   // 仅统计已审核放行（拥有非 pending/ignored 环节）且非归档的投递单
   const validApps = state.applications.filter(app => {
@@ -907,6 +918,8 @@ function renderTimelineView(appId) {
     .filter(s => s.application_id === targetApp.id && s.stage_status !== 'ignored' && s.stage_status !== 'pending')
     .sort((a, b) => (b.seq || 1) - (a.seq || 1));
   const latestStage = appStages[0];
+  const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+  const latestStages = appStages.filter(stage => (stage.seq || 1) === latestSeq);
 
   // 企业专属 Logo 图标
   let companyIcon = '🏢';
@@ -922,10 +935,12 @@ function renderTimelineView(appId) {
 
   const statusBadge = document.getElementById('timeline-status-badge');
   if (latestStage) {
-    if (latestStage.stage_status === 'scheduled') {
-      statusBadge.textContent = `⏳ ${latestStage.stage_name} 待参加`;
-    } else if (latestStage.stage_status === 'awaiting_result') {
-      statusBadge.textContent = `🎯 ${latestStage.stage_name} 等待结果`;
+    const scheduledNames = latestStages.filter(stage => stage.stage_status === 'scheduled').map(stage => stage.stage_name);
+    const awaitingNames = latestStages.filter(stage => stage.stage_status === 'awaiting_result').map(stage => stage.stage_name);
+    if (scheduledNames.length > 0) {
+      statusBadge.textContent = `⏳ ${scheduledNames.join(' / ')} 待完成`;
+    } else if (awaitingNames.length > 0) {
+      statusBadge.textContent = `🎯 ${awaitingNames.join(' / ')} 等待结果`;
     } else if (latestStage.stage_status === 'offered' || targetApp.overall_status === 'offered') {
       statusBadge.textContent = `🎉 已斩获 录用 Offer`;
     } else if (latestStage.stage_status === 'pending') {
@@ -950,7 +965,9 @@ function renderTimelineView(appId) {
   }
 
   nodesContainer.innerHTML = appStages.map((stg, idx) => {
-    const isLatestActive = idx === 0 && stg.stage_status === 'scheduled';
+    const isLatestPosition = (stg.seq || 1) === latestSeq;
+    const isParallel = latestStages.length > 1 && isLatestPosition;
+    const isLatestActive = isLatestPosition && stg.stage_status === 'scheduled';
     const isAwaiting = stg.stage_status === 'awaiting_result';
     const isOffered = stg.stage_status === 'offered';
 
@@ -968,17 +985,19 @@ function renderTimelineView(appId) {
     }
 
     // 格式化时间
-    const timeDisplay = stg.schedule_time || '待定';
+    const scheduleType = getScheduleType(stg);
+    const timePrefix = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '时间';
+    const timeDisplay = stg.schedule_time && stg.schedule_time !== '待定' ? `${timePrefix}：${stg.schedule_time}` : '时间待定';
 
     return `
-      <div class="timeline-bubble-item">
+      <div class="timeline-bubble-item ${isParallel ? 'timeline-parallel-item' : ''}">
         <!-- 双同心圆拟物发光节点 -->
         <div class="timeline-concentric-dot ${isLatestActive ? 'dot-active' : ''}"></div>
 
         <!-- 气泡对话框白瓷卡片 -->
         <div class="bubble-porcelain-card ${isLatestActive ? 'card-active-luminous' : ''}" onclick="window.openEditModalForCurrent('${stg.id}')">
           <div class="bubble-top-row">
-            <span class="bubble-seq-text">Stage ${stg.seq || (appStages.length - idx)}</span>
+            <span class="bubble-seq-text">Stage ${stg.seq || (appStages.length - idx)}${isParallel ? ' · 并列' : ''}</span>
             <span class="bubble-status-badge ${badgeClass}">${badgeText}</span>
           </div>
 
@@ -1043,7 +1062,13 @@ function openManualModal(defaultCompany = '') {
   document.getElementById('m-position').value = '';
   document.getElementById('m-stage-name').value = '';
   document.getElementById('m-schedule-time').value = '';
+  document.getElementById('m-schedule-type').value = 'deadline';
   document.getElementById('m-meeting').value = '';
+  const existingApp = state.applications.find(app => app.company === defaultCompany);
+  const positionWrap = document.getElementById('m-stage-position-wrap');
+  if (positionWrap) positionWrap.style.display = existingApp ? 'block' : 'none';
+  const positionSelect = document.getElementById('m-stage-position');
+  if (positionSelect) positionSelect.value = 'next';
   document.getElementById('manual-stage-modal').style.display = 'flex';
   triggerHaptic('light');
 }
@@ -1054,6 +1079,7 @@ window.closeManualModal = function() {
 
 window.setMPreset = function(name) {
   document.getElementById('m-stage-name').value = name;
+  document.getElementById('m-schedule-type').value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(name) ? 'start' : 'deadline';
   triggerHaptic('light');
 };
 
@@ -1063,9 +1089,11 @@ window.submitManualStage = async function() {
   const position = document.getElementById('m-position').value.trim();
   const stageName = document.getElementById('m-stage-name').value.trim();
   const scheduleTime = document.getElementById('m-schedule-time').value.trim();
+  const scheduleType = document.getElementById('m-schedule-type').value;
   const meeting = document.getElementById('m-meeting').value.trim();
   const statusRadio = document.querySelector('input[name="m-status-radio"]:checked');
   const stageStatus = statusRadio ? statusRadio.value : 'scheduled';
+  const positionMode = document.getElementById('m-stage-position')?.value || 'next';
 
   if (!company || !stageName) {
     showToast('⚠️ 公司名称与推进环节类型为必填项');
@@ -1076,7 +1104,7 @@ window.submitManualStage = async function() {
   try {
     await supabaseService.createApplicationWithStage(
       { company, department: dept, position },
-      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting }
+      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, schedule_type: scheduleTime ? scheduleType : 'unknown', meeting_info: meeting, parallel_with_latest: positionMode === 'parallel' }
     );
     showToast(`✨ 成功为【${company}】建档并推进【${stageName}】！`);
     window.closeManualModal();
@@ -1112,8 +1140,26 @@ window.openEditModalForCurrent = function(targetStageId) {
   // 2. 精确回显当前环节的名字、时间、会议与状态
   document.getElementById('e-stage-name').value = targetStage ? targetStage.stage_name : '';
   document.getElementById('e-schedule-time').value = targetStage ? (targetStage.schedule_time || '') : '';
+  document.getElementById('e-schedule-type').value = targetStage ? getScheduleType(targetStage) : 'unknown';
   document.getElementById('e-meeting').value = targetStage ? (targetStage.meeting_info || '') : '';
   document.getElementById('e-notes').value = targetStage ? (targetStage.notes || '') : '';
+
+  const positionSelect = document.getElementById('e-stage-position');
+  if (positionSelect && targetStage) {
+    const siblings = state.stages
+      .filter(stage => stage.application_id === app.id && stage.id !== targetStage.id && stage.stage_status !== 'ignored' && stage.stage_status !== 'pending')
+      .sort((a, b) => (a.seq || 1) - (b.seq || 1));
+    const groups = new Map();
+    siblings.forEach(stage => {
+      const seq = stage.seq || 1;
+      if (!groups.has(seq)) groups.set(seq, []);
+      groups.get(seq).push(stage.stage_name || '环节');
+    });
+    positionSelect.innerHTML = `<option value="${targetStage.seq || 1}">保持当前位置（第${targetStage.seq || 1}轮）</option>`
+      + [...groups.entries()].filter(([seq]) => seq !== (targetStage.seq || 1)).map(([seq, names]) =>
+        `<option value="${seq}">与「${escapeHtml(names.join(' / '))}」并列</option>`
+      ).join('');
+  }
 
   const currentStatus = targetStage ? targetStage.stage_status : 'scheduled';
   const targetRadio = document.querySelector(`input[name="e-status-radio"][value="${currentStatus}"]`);
@@ -1129,6 +1175,7 @@ window.closeEditModal = function() {
 
 window.setEPreset = function(name) {
   document.getElementById('e-stage-name').value = name;
+  document.getElementById('e-schedule-type').value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(name) ? 'start' : 'deadline';
   triggerHaptic('light');
 };
 
@@ -1140,10 +1187,12 @@ window.submitEditStage = async function() {
   const position = document.getElementById('e-position').value.trim();
   const stageName = document.getElementById('e-stage-name').value.trim();
   const scheduleTime = document.getElementById('e-schedule-time').value.trim();
+  const scheduleType = document.getElementById('e-schedule-type').value;
   const meeting = document.getElementById('e-meeting').value.trim();
   const notes = document.getElementById('e-notes').value.trim();
   const statusRadio = document.querySelector('input[name="e-status-radio"]:checked');
   const stageStatus = statusRadio ? statusRadio.value : 'scheduled';
+  const targetSeq = Number(document.getElementById('e-stage-position')?.value) || 1;
 
   if (!stageName) {
     showToast('⚠️ 环节名称不能为空');
@@ -1156,17 +1205,25 @@ window.submitEditStage = async function() {
     const appStages = state.stages
       .filter(s => s.application_id === appId && s.stage_status !== 'ignored' && s.stage_status !== 'pending')
       .sort((a, b) => (b.seq || 1) - (a.seq || 1));
-    const isLatest = appStages.length > 0 && appStages[0].id === stageId;
+    const hypothetical = appStages.map(stage => stage.id === stageId
+      ? { ...stage, seq: targetSeq, stage_name: stageName }
+      : stage);
+    const maxSeq = hypothetical.length > 0 ? Math.max(...hypothetical.map(stage => stage.seq || 1)) : targetSeq;
+    const isLatest = targetSeq === maxSeq;
 
     const appUpdateData = { company, department: dept, position };
     if (isLatest) {
-      appUpdateData.current_stage_name = stageName;
+      const latestNames = hypothetical
+        .filter(stage => stage.id !== stageId && (stage.seq || 1) === targetSeq)
+        .map(stage => stage.stage_name)
+        .concat(stageName);
+      appUpdateData.current_stage_name = [...new Set(latestNames.filter(Boolean))].join(' / ');
     }
 
     await supabaseService.updateStageAndApplication(
       stageId,
       appId,
-      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting, notes },
+      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, schedule_type: scheduleTime ? scheduleType : 'unknown', meeting_info: meeting, notes, seq: targetSeq },
       appUpdateData
     );
     showToast(`💾 已成功修正【${stageName}】环节信息！`);

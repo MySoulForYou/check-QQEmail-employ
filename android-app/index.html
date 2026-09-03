@@ -404,6 +404,15 @@
           </div>
 
           <div class="form-item-m">
+            <label>时间性质</label>
+            <select id="m-schedule-type">
+              <option value="deadline">截止时间</option>
+              <option value="start">开始时间</option>
+              <option value="unknown">时间待定</option>
+            </select>
+          </div>
+
+          <div class="form-item-m">
             <label>约定 / 通知时间 (选填)</label>
             <input type="text" id="m-schedule-time" placeholder="例如：2026-08-25 14:00、明天 10:00">
           </div>
@@ -411,6 +420,15 @@
           <div class="form-item-m">
             <label>会议凭据 / 地点 (选填)</label>
             <input type="text" id="m-meeting" placeholder="例如：腾讯会议 888-999-123">
+          </div>
+
+          <div class="form-item-m" id="m-stage-position-wrap" style="display:none;">
+            <label>流程位置</label>
+            <select id="m-stage-position">
+              <option value="next">作为下一轮（顺序推进）</option>
+              <option value="parallel">与当前最新环节并列</option>
+            </select>
+            <div class="field-hint">并列环节各自保留独立完成状态</div>
           </div>
 
           <div class="form-item-m">
@@ -524,6 +542,15 @@
           </div>
 
           <div class="form-item-m">
+            <label>时间性质</label>
+            <select id="e-schedule-type">
+              <option value="deadline">截止时间</option>
+              <option value="start">开始时间</option>
+              <option value="unknown">时间待定</option>
+            </select>
+          </div>
+
+          <div class="form-item-m">
             <label>约定 / 通知时间 (选填)</label>
             <input type="text" id="e-schedule-time">
           </div>
@@ -531,6 +558,12 @@
           <div class="form-item-m">
             <label>会议凭据 / 地点 (选填)</label>
             <input type="text" id="e-meeting">
+          </div>
+
+          <div class="form-item-m">
+            <label>流程位置</label>
+            <select id="e-stage-position"></select>
+            <div class="field-hint">选择另一环节即可并列，状态仍彼此独立</div>
           </div>
 
           <div class="form-item-m">

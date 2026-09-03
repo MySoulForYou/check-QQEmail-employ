@@ -130,6 +130,7 @@ class WorkerAIMatcherTests(unittest.TestCase):
         inserted_stage = mock_post.call_args[1]["json"]
         self.assertEqual(inserted_stage["application_id"], "app-uuid-99")
         self.assertEqual(inserted_stage["seq"], 2)
+        self.assertEqual(inserted_stage["schedule_type"], "start")
 
 
 if __name__ == "__main__":

@@ -171,9 +171,9 @@
                         <thead>
                             <tr>
                                 <th style="width: 25%;">企业与岗位</th>
-                                <th style="width: 35%;">求职进度</th>
+                                <th style="width: 32%;">求职进度</th>
                                 <th style="width: 25%;">当前状态</th>
-                                <th style="width: 15%;">约定时间</th>
+                                <th style="width: 18%;">关键时间</th>
                             </tr>
                         </thead>
                         <tbody id="dashboard-tbody">
@@ -343,9 +343,19 @@
 
                     <div class="form-row">
                         <div class="form-item form-col">
+                            <label>时间性质</label>
+                            <select id="manual-schedule-type" class="stage-position-select">
+                                <option value="deadline">截止时间</option>
+                                <option value="start">开始时间</option>
+                                <option value="unknown">时间待定</option>
+                            </select>
+                        </div>
+                        <div class="form-item form-col">
                             <label>约定 / 通知时间 (选填)</label>
                             <input type="text" id="manual-stage-time" placeholder="例如：2026-08-25 14:00、明天 10:00" spellcheck="false" />
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-item form-col">
                             <label>公司官网 (选填)</label>
                             <input type="url" id="manual-stage-notes" placeholder="例如：https://www.example.com" spellcheck="false" />
@@ -355,6 +365,15 @@
                     <div class="form-item">
                         <label>本轮等待预期 (选填)</label>
                         <input type="text" id="manual-next-exp" placeholder="例如：等待一面结果、等待意向书发放" spellcheck="false" />
+                    </div>
+
+                    <div class="form-item" id="manual-stage-position-wrap" style="display:none;">
+                        <label>流程位置</label>
+                        <select id="manual-stage-position" class="stage-position-select">
+                            <option value="next">作为下一轮（顺序推进）</option>
+                            <option value="parallel">与当前最新环节并列</option>
+                        </select>
+                        <span class="form-hint">并列只共享流程位置，每个环节仍可单独完成。</span>
                     </div>
 
                     <div class="form-item">
@@ -460,9 +479,19 @@
                     <!-- 4. 约定时间与公司官网 -->
                     <div class="form-row">
                         <div class="form-item form-col">
+                            <label>时间性质</label>
+                            <select id="edit-schedule-type" class="stage-position-select">
+                                <option value="deadline">截止时间</option>
+                                <option value="start">开始时间</option>
+                                <option value="unknown">时间待定</option>
+                            </select>
+                        </div>
+                        <div class="form-item form-col">
                             <label>约定 / 截止时间 (选填)</label>
                             <input type="text" id="edit-schedule-time" placeholder="例如：2026-08-25 19:00 或 待定" spellcheck="false" />
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-item form-col">
                             <label>公司官网 (选填)</label>
                             <input type="url" id="edit-meeting-info" placeholder="例如：https://www.example.com" spellcheck="false" />
@@ -472,6 +501,12 @@
                     <div class="form-item">
                         <label>本轮等待预期 (选填)</label>
                         <input type="text" id="edit-next-expectation" placeholder="例如：等待一面结果、等待意向书发放" spellcheck="false" />
+                    </div>
+
+                    <div class="form-item">
+                        <label>流程位置</label>
+                        <select id="edit-stage-position" class="stage-position-select"></select>
+                        <span class="form-hint">选择另一环节即可与它并列；两者的完成状态仍彼此独立。</span>
                     </div>
 
                     <div class="form-item">
