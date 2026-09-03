@@ -2586,3 +2586,32 @@ body[data-theme="creamy-luminous"] .cal-day-cell.is-selected {
   background: rgba(99, 102, 241, 0.16);
 }
 
+/* 当日日程悬浮弹窗 */
+.calendar-agenda-sheet {
+  background: var(--surface-porcelain);
+  border-top: 1px solid var(--border-porcelain);
+}
+
+.agenda-sheet-icon {
+  font-size: 1.5rem;
+}
+
+.agenda-sheet-subtitle {
+  display: flex;
+  align-items: center;
+  font-size: 0.74rem;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+.agenda-sheet-count-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-indigo);
+  margin-left: 6px;
+}
+
+

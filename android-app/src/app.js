@@ -1698,31 +1698,39 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
   const list = document.getElementById('calendar-agenda-list');
   const badge = document.getElementById('calendar-selected-date-badge');
   const countBadge = document.getElementById('calendar-selected-count-badge');
-  if (!list) return;
+
+  const sheetList = document.getElementById('calendar-agenda-sheet-list');
+  const sheetTitle = document.getElementById('agenda-sheet-date-title');
+  const sheetCountTag = document.getElementById('agenda-sheet-count-tag');
 
   const selected = parseScheduleDate(state.selectedCalendarKey);
   const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  if (badge && selected) {
-    badge.textContent = `${selected.getMonth() + 1}月${selected.getDate()}日 ${weekDays[selected.getDay()]}`;
-  }
+  const dateFormatted = selected
+    ? `${selected.getMonth() + 1}月${selected.getDate()}日 ${weekDays[selected.getDay()]}`
+    : state.selectedCalendarKey;
+
+  if (badge) badge.textContent = dateFormatted;
+  if (sheetTitle) sheetTitle.textContent = dateFormatted;
 
   const items = entries.filter(item => item.key === state.selectedCalendarKey);
-  if (countBadge) {
-    countBadge.textContent = `${items.length} 项安排`;
-  }
+  const countText = `${items.length} 项安排`;
+  if (countBadge) countBadge.textContent = countText;
+  if (sheetCountTag) sheetCountTag.textContent = countText;
 
   if (items.length === 0) {
-    list.innerHTML = `
+    const emptyHtml = `
       <div class="agenda-empty-card">
         <div class="agenda-empty-icon">☕</div>
-        <div class="agenda-empty-title">当天没有求职日程</div>
-        <div class="agenda-empty-sub">可以安心复盘或准备后续投递与面试</div>
+        <div class="agenda-empty-title">当天没有求职日程安排</div>
+        <div class="agenda-empty-sub">可以安心复盘、准备刷题或投递新岗位</div>
       </div>
     `;
+    if (list) list.innerHTML = emptyHtml;
+    if (sheetList) sheetList.innerHTML = emptyHtml;
     return;
   }
 
-  list.innerHTML = items.map(item => {
+  const itemsHtml = items.map(item => {
     const { stage, app, date } = item;
     const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     const scheduleType = getScheduleType(stage);
@@ -1746,23 +1754,29 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
     }
 
     return `
-      <div class="agenda-item-card" onclick="window.viewCompanyTimeline('${app.id}')">
+      <div class="agenda-item-card" onclick="window.closeCalendarAgendaSheetDirect(); window.viewCompanyTimeline('${app.id}')">
         <div class="agenda-left-info">
           <div class="agenda-item-time-row">
             <span class="agenda-time-text">⏱ ${time}</span>
-            <span class="agenda-type-tag ${typeClass}">${typeTagLabel}</span>
+            <span class="agenda-type-tag ${typeClass}">[${typeTagLabel}]</span>
           </div>
           <div class="agenda-company-title">${escapeHtml(app.company)} · ${escapeHtml(stage.stage_name)}</div>
           <div class="agenda-stage-subtitle">${app.position ? escapeHtml(app.position) : '求职岗位'}${app.department ? ` · ${escapeHtml(app.department)}` : ''}</div>
         </div>
-        <span class="bento-status-tag ${statusPillClass}">${statusText}</span>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <span class="bento-status-tag ${statusPillClass}">${statusText}</span>
+          <span style="font-size:0.72rem; color:var(--accent-indigo); font-weight:700;">查看档案 ➔</span>
+        </div>
       </div>
     `;
   }).join('');
+
+  if (list) list.innerHTML = itemsHtml;
+  if (sheetList) sheetList.innerHTML = itemsHtml;
 }
 
 // ==========================================================================
-// 14. 移动端快捷事件响应 (日历翻页、选择、邮件主题复制)
+// 14. 移动端快捷事件响应 (日历翻页、选择、弹出悬浮框、邮件主题复制)
 // ==========================================================================
 window.changeCalendarMonth = function(offset) {
   state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + offset, 1);
@@ -1777,12 +1791,45 @@ window.goToCalendarToday = function() {
   state.selectedCalendarKey = formatCalendarKey(today);
   triggerHaptic('medium');
   renderCalendar();
+  window.openCalendarAgendaSheet();
 };
 
 window.selectCalendarDay = function(key) {
   state.selectedCalendarKey = key;
-  triggerHaptic('light');
+  triggerHaptic('medium');
   renderCalendar();
+  window.openCalendarAgendaSheet();
+};
+
+window.openCalendarAgendaSheet = function() {
+  const overlay = document.getElementById('calendar-agenda-overlay');
+  if (!overlay) return;
+  overlay.classList.add('active');
+  state.isCalendarSheetOpen = true;
+};
+
+window.closeCalendarAgendaSheet = function(e) {
+  if (e && e.target && e.target.id !== 'calendar-agenda-overlay') return;
+  window.closeCalendarAgendaSheetDirect();
+};
+
+window.closeCalendarAgendaSheetDirect = function() {
+  const overlay = document.getElementById('calendar-agenda-overlay');
+  if (overlay) overlay.classList.remove('active');
+  state.isCalendarSheetOpen = false;
+};
+
+window.openManualModalForCalendarDay = function() {
+  window.closeCalendarAgendaSheetDirect();
+  openManualModal('');
+  setTimeout(() => {
+    const timeInput = document.getElementById('m-time');
+    if (timeInput && state.selectedCalendarKey) {
+      timeInput.value = `${state.selectedCalendarKey} 10:00`;
+    }
+  }, 50);
+  triggerHaptic('light');
+  showToast(`📅 已预填 ${state.selectedCalendarKey} 日期`);
 };
 
 window.toggleUrgentBannerExpanded = function() {
@@ -1821,4 +1868,5 @@ window.copyCurrentDrawerEmailSubject = function() {
   const company = app ? app.company : '';
   window.copyEmailSubjectAndNotice(stage ? stage.raw_subject : '', company);
 };
+
 

@@ -135,7 +135,7 @@
           <!-- 瓷感月历网格卡片 -->
           <div class="porcelain-calendar-card">
             <div class="calendar-weekdays-row">
-              <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+              <span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span><span>周六</span><span>周日</span>
             </div>
             <div class="calendar-days-grid" id="calendar-days-grid">
               <!-- 动态注入 42 格日历单元 -->
@@ -424,6 +424,40 @@
           </button>
           <button class="btn-sheet-ignore" id="drawer-btn-ignore" onclick="window.ignoreCurrentDrawerStage()">
             <span class="cross-icon">✕</span> 移入已忽略
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2.1 📅 当日求职日程悬浮弹窗 (Calendar Day Agenda Sheet) ==================== -->
+    <div class="bottom-sheet-overlay" id="calendar-agenda-overlay" onclick="window.closeCalendarAgendaSheet(event)">
+      <div class="bottom-sheet-container calendar-agenda-sheet" id="calendar-agenda-container">
+        <!-- 顶部拖拽横条把手 -->
+        <div class="sheet-drag-handle"></div>
+
+        <div class="sheet-header">
+          <div class="sheet-header-title">
+            <span class="agenda-sheet-icon">📅</span>
+            <div>
+              <div class="sheet-title-text" id="agenda-sheet-date-title">9月3日 周四</div>
+              <div class="agenda-sheet-subtitle">
+                <span>当日求职安排</span>
+                <span class="agenda-sheet-count-tag" id="agenda-sheet-count-tag">0 项安排</span>
+              </div>
+            </div>
+          </div>
+          <button class="sheet-close-btn" onclick="window.closeCalendarAgendaSheetDirect()">&times;</button>
+        </div>
+
+        <div class="sheet-body-scroll" style="max-height: 55vh; padding-bottom: 8px;">
+          <div class="agenda-cards-list" id="calendar-agenda-sheet-list">
+            <!-- 动态注入当日事项 -->
+          </div>
+        </div>
+
+        <div class="sheet-bottom-actions" style="margin-top: 10px;">
+          <button class="btn-sheet-approve" style="background: var(--accent-indigo);" onclick="window.openManualModalForCalendarDay()">
+            <span class="plus-icon">＋</span> 为当天添加求职安排
           </button>
         </div>
       </div>
