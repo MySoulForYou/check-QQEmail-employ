@@ -1374,10 +1374,26 @@ function renderDashboard() {
         const safePos = escapeHTML(app.position || '校招投递岗位');
         const companyNameHTML = renderCompanyName(app, safeCompany, 'comp-title');
 
-        let timeFormatted = '待定';
-        if (latestStage && latestStage.schedule_time && latestStage.schedule_time !== '待定') {
-            timeFormatted = escapeHTML(latestStage.schedule_time);
-        }
+        const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+        const latestStageGroup = stages.filter(stage => (stage.seq || 1) === latestSeq);
+        const timeHTML = latestStageGroup.length > 0 ? latestStageGroup.map(stage => {
+            const scheduleType = getScheduleType(stage);
+            const typeLabel = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '待定';
+            const timeValue = stage.schedule_time && stage.schedule_time !== '待定'
+                ? escapeHTML(stage.schedule_time)
+                : '时间待定';
+            return `
+                <div class="key-time-item">
+                    <span class="key-time-type key-time-type-${scheduleType}">${typeLabel}</span>
+                    <span class="time-text">${timeValue}</span>
+                </div>
+            `;
+        }).join('') : `
+            <div class="key-time-item">
+                <span class="key-time-type key-time-type-unknown">待定</span>
+                <span class="time-text">时间待定</span>
+            </div>
+        `;
 
         const pipelineHTML = generatePipelineHTML(stages);
 
@@ -1403,7 +1419,7 @@ function renderDashboard() {
                     </span>
                 </td>
                 <td>
-                    <span class="time-text">${timeFormatted}</span>
+                    <div class="key-time-list">${timeHTML}</div>
                 </td>
             </tr>
         `;

@@ -1355,6 +1355,43 @@ body {
     display: block;
 }
 
+.key-time-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.key-time-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.key-time-type {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.key-time-type-start {
+    color: #4338CA;
+    background: #EEF2FF;
+}
+
+.key-time-type-deadline {
+    color: #BE123C;
+    background: #FFF1F2;
+}
+
+.key-time-type-unknown {
+    color: #64748B;
+    background: #F1F5F9;
+}
+
 .time-hint {
     font-size: 0.72rem;
     color: var(--text-sub);
