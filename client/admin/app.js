@@ -417,10 +417,20 @@ function generatePipelineHTML(stages) {
 
     // 按 seq 升序排序 (从最初网申到最新环节)
     const sorted = [...stages].sort((a, b) => (a.seq || 1) - (b.seq || 1));
-    const latestStage = sorted[sorted.length - 1];
+    const maxSeq = Math.max(...sorted.map(s => s.seq || 1));
+    const groups = [];
+    sorted.forEach(stage => {
+        const seq = stage.seq || 1;
+        let group = groups.find(item => item.seq === seq);
+        if (!group) {
+            group = { seq, stages: [] };
+            groups.push(group);
+        }
+        group.stages.push(stage);
+    });
 
-    const stepsHTML = sorted.map((s, idx) => {
-        const isLatest = idx === sorted.length - 1;
+    const renderStep = (s) => {
+        const isLatest = (s.seq || 1) === maxSeq;
         const meta = getStageStatusMeta(s);
         let stageLabel = s.stage_name || '环节';
 
@@ -457,6 +467,13 @@ function generatePipelineHTML(stages) {
                 <span class="step-name">${escapeHTML(stageLabel)}</span>
             </div>
         `;
+    };
+
+    const stepsHTML = groups.map(group => {
+        const content = group.stages.map(renderStep).join('');
+        return group.stages.length > 1
+            ? `<div class="pipeline-parallel-group" title="并列环节，状态独立">${content}</div>`
+            : content;
     });
 
     return `
@@ -1447,6 +1464,8 @@ function openTimelineDrawer(appId) {
     // 🎯 核心升级：按 seq DESC 倒序排列（最新进展在最上方！）
     const reverseStages = [...stages].sort((a, b) => (b.seq || 1) - (a.seq || 1));
     const latestStage = reverseStages[0];
+    const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+    const latestStages = reverseStages.filter(stage => (stage.seq || 1) === latestSeq);
     const latestMeta = getStageStatusMeta(latestStage, app);
 
     drawerTitle.dataset.appId = app.id;
@@ -1454,7 +1473,7 @@ function openTimelineDrawer(appId) {
     drawerBadge.className = `badge-tag ${latestMeta.badgeClass}`;
     drawerBadge.textContent = latestMeta.badgeText;
     drawerPos.textContent = `投递岗位: ${app.position || '校招应聘'}`;
-    drawerCount.textContent = `共 ${stages.length} 轮应聘进展`;
+    drawerCount.textContent = `共 ${new Set(stages.map(stage => stage.seq || 1)).size} 轮·${stages.length} 个环节`;
 
     // 渲染垂直倒序发光时间轴
     if (reverseStages.length === 0) {
@@ -1465,7 +1484,8 @@ function openTimelineDrawer(appId) {
         `;
     } else {
         timelineContent.innerHTML = reverseStages.map((s, index) => {
-            const isLatest = index === 0; // 倒序排布下，第 0 项即为当前最新进展！
+            const isLatest = (s.seq || 1) === latestSeq;
+            const isParallel = latestStages.length > 1 && isLatest;
             const meta = getStageStatusMeta(s, app);
             const safeType = escapeHTML(s.stage_name || '环节');
             const safeTime = escapeHTML(s.schedule_time || '时间待定');
@@ -1493,9 +1513,11 @@ function openTimelineDrawer(appId) {
                         <button class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#334155;" onclick="openEditStageModal('${s.id}')" title="全字段自由修正：修改环节名称、流转状态、约定时间、公司官网或备注">
                             ✏️ 修正
                         </button>
-                        <button class="btn btn-outline btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#64748B;" onclick="rollbackCurrentStage('${app.id}', '${s.id}')" title="手误推进或错发邮件：撤销当前轮次并无缝回退到上一轮">
-                            ↩ 撤销本轮
-                        </button>
+                        ${isParallel ? '' : `
+                            <button class="btn btn-outline btn-sm" style="font-size:0.75rem;padding:3px 8px;color:#64748B;" onclick="rollbackCurrentStage('${app.id}', '${s.id}')" title="手误推进或错发邮件：撤销当前轮次并无缝回退到上一轮">
+                                ↩ 撤销本轮
+                            </button>
+                        `}
                     `;
                 } else if (s.stage_status === 'awaiting_result') {
                     actionButtonsHTML = `
@@ -1524,7 +1546,7 @@ function openTimelineDrawer(appId) {
             }
 
             return `
-                <div class="timeline-item ${isLatest ? 'is-latest' : ''}">
+                <div class="timeline-item ${isLatest ? 'is-latest' : ''} ${isParallel ? 'is-parallel' : ''}">
                     <div class="timeline-node">
                         ${isLatest ? '•' : meta.nodeIcon}
                     </div>
@@ -1532,7 +1554,7 @@ function openTimelineDrawer(appId) {
                         <div class="timeline-header">
                             <div class="timeline-stage-name">
                                 ${meta.icon} 第${s.seq || 1}轮 · ${safeType}
-                                ${isLatest ? '<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">最新进展</span>' : ''}
+                                ${isLatest ? `<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">${isParallel ? '并列进行中' : '最新进展'}</span>` : ''}
                             </div>
                             <span class="timeline-timestamp">${dateStr}</span>
                         </div>
@@ -2412,6 +2434,8 @@ function openManualStageModal(targetAppId) {
     const notesInput = document.getElementById('manual-stage-notes');
     const nextExpInput = document.getElementById('manual-next-exp');
     const msgEl = document.getElementById('manual-stage-msg');
+    const positionWrap = document.getElementById('manual-stage-position-wrap');
+    const positionSelect = document.getElementById('manual-stage-position');
 
     if (!modal) return;
 
@@ -2423,6 +2447,8 @@ function openManualStageModal(targetAppId) {
             if (deptInput) deptInput.value = app.department || '';
             if (jobInput) jobInput.value = app.position || '';
             if (titleEl) titleEl.textContent = `🚀 推进「${app.company}」下一环节`;
+            if (positionWrap) positionWrap.style.display = 'block';
+            if (positionSelect) positionSelect.value = 'next';
         }
     } else {
         delete modal.dataset.appId;
@@ -2430,6 +2456,7 @@ function openManualStageModal(targetAppId) {
         if (deptInput) deptInput.value = '';
         if (jobInput) jobInput.value = '';
         if (titleEl) titleEl.textContent = '手动添加投递企业与环节';
+        if (positionWrap) positionWrap.style.display = 'none';
     }
 
     if (typeInput) typeInput.value = '';
@@ -2494,6 +2521,7 @@ async function submitManualStage() {
     const nextExp = (document.getElementById('manual-next-exp')?.value || '').trim();
     const statusRadio = document.querySelector('input[name="manual-status"]:checked');
     const initialStatus = statusRadio ? statusRadio.value : 'approved';
+    const positionMode = document.getElementById('manual-stage-position')?.value || 'next';
     const msgEl = document.getElementById('manual-stage-msg');
     const submitBtn = document.getElementById('btn-submit-manual-stage');
 
@@ -2542,7 +2570,13 @@ async function submitManualStage() {
         if (targetApp) {
             // 已有企业：计算下一轮 seq
             const existingStages = (appStagesMap[targetApp.id] || []).filter(s => s.stage_status !== 'ignored');
-            nextSeq = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.seq || 1)) + 1 : 1;
+            const maxSeq = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.seq || 1)) : 0;
+            nextSeq = positionMode === 'parallel' && maxSeq > 0 ? maxSeq : maxSeq + 1;
+            const currentGroupNames = existingStages
+                .filter(stage => (stage.seq || 1) === nextSeq)
+                .map(stage => stage.stage_name)
+                .filter(Boolean);
+            const currentStageName = [...new Set([...currentGroupNames, stageType])].join(' / ');
 
             // 将该企业下的前序非忽略环节标记为 passed (已通过)
             await supabase
@@ -2552,7 +2586,8 @@ async function submitManualStage() {
                     updated_at: new Date().toISOString()
                 })
                 .eq('application_id', targetApp.id)
-                .neq('stage_status', 'ignored');
+                .neq('stage_status', 'ignored')
+                .lt('seq', nextSeq);
 
             // 更新主表状态
             await supabase
@@ -2561,7 +2596,7 @@ async function submitManualStage() {
                     company: compName,
                     department: deptName || null,
                     position: jobSubject || targetApp.position,
-                    current_stage_name: stageType,
+                    current_stage_name: currentStageName,
                     overall_status: (stageType.includes('Offer') || stageType.includes('录用')) ? 'offered' : 'active',
                     updated_at: new Date().toISOString()
                 })
@@ -2689,6 +2724,23 @@ function openEditStageModal(stageId) {
     document.getElementById('edit-next-expectation').value = stage.next_expectation || '';
     document.getElementById('edit-stage-notes').value = stage.notes || '';
 
+    const positionSelect = document.getElementById('edit-stage-position');
+    if (positionSelect) {
+        const siblings = (appStagesMap[stage.application_id] || [])
+            .filter(item => item.id !== stage.id && item.stage_status !== 'ignored')
+            .sort((a, b) => (a.seq || 1) - (b.seq || 1));
+        const grouped = new Map();
+        siblings.forEach(item => {
+            const seq = item.seq || 1;
+            if (!grouped.has(seq)) grouped.set(seq, []);
+            grouped.get(seq).push(item.stage_name || '环节');
+        });
+        positionSelect.innerHTML = `<option value="${stage.seq || 1}">保持当前位置（第${stage.seq || 1}轮）</option>`
+            + [...grouped.entries()].filter(([seq]) => seq !== (stage.seq || 1)).map(([seq, names]) =>
+                `<option value="${seq}">与「${escapeHTML(names.join(' / '))}」并列（第${seq}轮）</option>`
+            ).join('');
+    }
+
     const msgEl = document.getElementById('edit-stage-msg');
     if (msgEl) msgEl.textContent = '';
 
@@ -2734,6 +2786,7 @@ async function submitEditStage() {
     const meetingInfo = (document.getElementById('edit-meeting-info')?.value || '').trim();
     const nextExp = (document.getElementById('edit-next-expectation')?.value || '').trim();
     const notes = (document.getElementById('edit-stage-notes')?.value || '').trim();
+    const targetSeq = Number(document.getElementById('edit-stage-position')?.value) || 1;
     const msgEl = document.getElementById('edit-stage-msg');
     const saveBtn = document.getElementById('btn-save-edit-stage');
 
@@ -2779,6 +2832,16 @@ async function submitEditStage() {
             stageDbStatus = 'ignored';
         }
 
+        const existingForApp = (appStagesMap[appId] || []).filter(stage => stage.stage_status !== 'ignored');
+        const hypothetical = existingForApp.map(stage => stage.id === stageId
+            ? { ...stage, seq: targetSeq, stage_name: stageName }
+            : stage);
+        const maxSeq = hypothetical.length ? Math.max(...hypothetical.map(stage => stage.seq || 1)) : targetSeq;
+        const currentStageName = [...new Set(hypothetical
+            .filter(stage => (stage.seq || 1) === maxSeq)
+            .map(stage => stage.stage_name)
+            .filter(Boolean))].join(' / ') || stageName;
+
         // 2. 更新 applications 主表
         const { data: updatedApps, error: appErr } = await supabase
             .from('applications')
@@ -2786,7 +2849,7 @@ async function submitEditStage() {
                 company: compName,
                 department: deptName || '',
                 position: posName || '未指定岗位',
-                current_stage_name: stageName,
+                current_stage_name: currentStageName,
                 overall_status: overallStatus,
                 updated_at: new Date().toISOString()
             })
@@ -2810,6 +2873,7 @@ async function submitEditStage() {
                     meeting_info: meetingInfo,
                     next_expectation: nextExp || '',
                     notes: notes || '',
+                    seq: targetSeq,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', stageId);

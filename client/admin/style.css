@@ -1246,6 +1246,30 @@ body {
     font-weight: 600;
 }
 
+.pipeline-parallel-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    border: 1px dashed #C4B5FD;
+    border-radius: var(--radius-full);
+    background: #FAF8FF;
+}
+
+.stage-position-select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: #FFFFFF;
+    color: var(--text-primary);
+    font: inherit;
+}
+
+.timeline-item.is-parallel .timeline-card {
+    border-left: 3px solid #A78BFA;
+}
+
 .pipeline-step.done {
     background: #F1F5F9;
     color: #475569;

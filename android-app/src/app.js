@@ -907,6 +907,8 @@ function renderTimelineView(appId) {
     .filter(s => s.application_id === targetApp.id && s.stage_status !== 'ignored' && s.stage_status !== 'pending')
     .sort((a, b) => (b.seq || 1) - (a.seq || 1));
   const latestStage = appStages[0];
+  const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+  const latestStages = appStages.filter(stage => (stage.seq || 1) === latestSeq);
 
   // 企业专属 Logo 图标
   let companyIcon = '🏢';
@@ -922,10 +924,12 @@ function renderTimelineView(appId) {
 
   const statusBadge = document.getElementById('timeline-status-badge');
   if (latestStage) {
-    if (latestStage.stage_status === 'scheduled') {
-      statusBadge.textContent = `⏳ ${latestStage.stage_name} 待参加`;
-    } else if (latestStage.stage_status === 'awaiting_result') {
-      statusBadge.textContent = `🎯 ${latestStage.stage_name} 等待结果`;
+    const scheduledNames = latestStages.filter(stage => stage.stage_status === 'scheduled').map(stage => stage.stage_name);
+    const awaitingNames = latestStages.filter(stage => stage.stage_status === 'awaiting_result').map(stage => stage.stage_name);
+    if (scheduledNames.length > 0) {
+      statusBadge.textContent = `⏳ ${scheduledNames.join(' / ')} 待完成`;
+    } else if (awaitingNames.length > 0) {
+      statusBadge.textContent = `🎯 ${awaitingNames.join(' / ')} 等待结果`;
     } else if (latestStage.stage_status === 'offered' || targetApp.overall_status === 'offered') {
       statusBadge.textContent = `🎉 已斩获 录用 Offer`;
     } else if (latestStage.stage_status === 'pending') {
@@ -950,7 +954,9 @@ function renderTimelineView(appId) {
   }
 
   nodesContainer.innerHTML = appStages.map((stg, idx) => {
-    const isLatestActive = idx === 0 && stg.stage_status === 'scheduled';
+    const isLatestPosition = (stg.seq || 1) === latestSeq;
+    const isParallel = latestStages.length > 1 && isLatestPosition;
+    const isLatestActive = isLatestPosition && stg.stage_status === 'scheduled';
     const isAwaiting = stg.stage_status === 'awaiting_result';
     const isOffered = stg.stage_status === 'offered';
 
@@ -971,14 +977,14 @@ function renderTimelineView(appId) {
     const timeDisplay = stg.schedule_time || '待定';
 
     return `
-      <div class="timeline-bubble-item">
+      <div class="timeline-bubble-item ${isParallel ? 'timeline-parallel-item' : ''}">
         <!-- 双同心圆拟物发光节点 -->
         <div class="timeline-concentric-dot ${isLatestActive ? 'dot-active' : ''}"></div>
 
         <!-- 气泡对话框白瓷卡片 -->
         <div class="bubble-porcelain-card ${isLatestActive ? 'card-active-luminous' : ''}" onclick="window.openEditModalForCurrent('${stg.id}')">
           <div class="bubble-top-row">
-            <span class="bubble-seq-text">Stage ${stg.seq || (appStages.length - idx)}</span>
+            <span class="bubble-seq-text">Stage ${stg.seq || (appStages.length - idx)}${isParallel ? ' · 并列' : ''}</span>
             <span class="bubble-status-badge ${badgeClass}">${badgeText}</span>
           </div>
 
@@ -1044,6 +1050,11 @@ function openManualModal(defaultCompany = '') {
   document.getElementById('m-stage-name').value = '';
   document.getElementById('m-schedule-time').value = '';
   document.getElementById('m-meeting').value = '';
+  const existingApp = state.applications.find(app => app.company === defaultCompany);
+  const positionWrap = document.getElementById('m-stage-position-wrap');
+  if (positionWrap) positionWrap.style.display = existingApp ? 'block' : 'none';
+  const positionSelect = document.getElementById('m-stage-position');
+  if (positionSelect) positionSelect.value = 'next';
   document.getElementById('manual-stage-modal').style.display = 'flex';
   triggerHaptic('light');
 }
@@ -1066,6 +1077,7 @@ window.submitManualStage = async function() {
   const meeting = document.getElementById('m-meeting').value.trim();
   const statusRadio = document.querySelector('input[name="m-status-radio"]:checked');
   const stageStatus = statusRadio ? statusRadio.value : 'scheduled';
+  const positionMode = document.getElementById('m-stage-position')?.value || 'next';
 
   if (!company || !stageName) {
     showToast('⚠️ 公司名称与推进环节类型为必填项');
@@ -1076,7 +1088,7 @@ window.submitManualStage = async function() {
   try {
     await supabaseService.createApplicationWithStage(
       { company, department: dept, position },
-      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting }
+      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting, parallel_with_latest: positionMode === 'parallel' }
     );
     showToast(`✨ 成功为【${company}】建档并推进【${stageName}】！`);
     window.closeManualModal();
@@ -1115,6 +1127,23 @@ window.openEditModalForCurrent = function(targetStageId) {
   document.getElementById('e-meeting').value = targetStage ? (targetStage.meeting_info || '') : '';
   document.getElementById('e-notes').value = targetStage ? (targetStage.notes || '') : '';
 
+  const positionSelect = document.getElementById('e-stage-position');
+  if (positionSelect && targetStage) {
+    const siblings = state.stages
+      .filter(stage => stage.application_id === app.id && stage.id !== targetStage.id && stage.stage_status !== 'ignored' && stage.stage_status !== 'pending')
+      .sort((a, b) => (a.seq || 1) - (b.seq || 1));
+    const groups = new Map();
+    siblings.forEach(stage => {
+      const seq = stage.seq || 1;
+      if (!groups.has(seq)) groups.set(seq, []);
+      groups.get(seq).push(stage.stage_name || '环节');
+    });
+    positionSelect.innerHTML = `<option value="${targetStage.seq || 1}">保持当前位置（第${targetStage.seq || 1}轮）</option>`
+      + [...groups.entries()].filter(([seq]) => seq !== (targetStage.seq || 1)).map(([seq, names]) =>
+        `<option value="${seq}">与「${escapeHtml(names.join(' / '))}」并列</option>`
+      ).join('');
+  }
+
   const currentStatus = targetStage ? targetStage.stage_status : 'scheduled';
   const targetRadio = document.querySelector(`input[name="e-status-radio"][value="${currentStatus}"]`);
   if (targetRadio) targetRadio.checked = true;
@@ -1144,6 +1173,7 @@ window.submitEditStage = async function() {
   const notes = document.getElementById('e-notes').value.trim();
   const statusRadio = document.querySelector('input[name="e-status-radio"]:checked');
   const stageStatus = statusRadio ? statusRadio.value : 'scheduled';
+  const targetSeq = Number(document.getElementById('e-stage-position')?.value) || 1;
 
   if (!stageName) {
     showToast('⚠️ 环节名称不能为空');
@@ -1156,17 +1186,25 @@ window.submitEditStage = async function() {
     const appStages = state.stages
       .filter(s => s.application_id === appId && s.stage_status !== 'ignored' && s.stage_status !== 'pending')
       .sort((a, b) => (b.seq || 1) - (a.seq || 1));
-    const isLatest = appStages.length > 0 && appStages[0].id === stageId;
+    const hypothetical = appStages.map(stage => stage.id === stageId
+      ? { ...stage, seq: targetSeq, stage_name: stageName }
+      : stage);
+    const maxSeq = hypothetical.length > 0 ? Math.max(...hypothetical.map(stage => stage.seq || 1)) : targetSeq;
+    const isLatest = targetSeq === maxSeq;
 
     const appUpdateData = { company, department: dept, position };
     if (isLatest) {
-      appUpdateData.current_stage_name = stageName;
+      const latestNames = hypothetical
+        .filter(stage => stage.id !== stageId && (stage.seq || 1) === targetSeq)
+        .map(stage => stage.stage_name)
+        .concat(stageName);
+      appUpdateData.current_stage_name = [...new Set(latestNames.filter(Boolean))].join(' / ');
     }
 
     await supabaseService.updateStageAndApplication(
       stageId,
       appId,
-      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting, notes },
+      { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, meeting_info: meeting, notes, seq: targetSeq },
       appUpdateData
     );
     showToast(`💾 已成功修正【${stageName}】环节信息！`);

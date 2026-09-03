@@ -175,19 +175,12 @@ class SupabaseMobileService {
     // 检查是否存在同名公司
     const checkRes = await fetch(`${this.url}/rest/v1/applications?company=eq.${encodeURIComponent(appData.company)}&limit=1`, { headers });
     let appId = null;
+    let existingApp = null;
     if (checkRes.ok) {
       const existing = await checkRes.json();
       if (existing && existing.length > 0) {
-        appId = existing[0].id;
-        // 更新岗位与最新环节
-        await fetch(`${this.url}/rest/v1/applications?id=eq.${appId}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({
-            current_stage_name: stageData.stage_name,
-            updated_at: new Date().toISOString()
-          })
-        });
+        existingApp = existing[0];
+        appId = existingApp.id;
       }
     }
 
@@ -208,12 +201,26 @@ class SupabaseMobileService {
       appId = createdApp[0].id;
     }
 
-    // 查询当前已有 stage 个数作为 seq
+    // 查询当前最大 seq；并列环节复用同一 seq，但仍是独立记录。
     const stagesRes = await fetch(`${this.url}/rest/v1/application_stages?application_id=eq.${appId}&select=seq&order=seq.desc&limit=1`, { headers });
     let maxSeq = 0;
     if (stagesRes.ok) {
       const s = await stagesRes.json();
       if (s && s.length > 0) maxSeq = s[0].seq || 0;
+    }
+
+    if (existingApp) {
+      const currentStageName = stageData.parallel_with_latest && maxSeq > 0
+        ? [...new Set(String(existingApp.current_stage_name || '').split(' / ').filter(Boolean).concat(stageData.stage_name))].join(' / ')
+        : stageData.stage_name;
+      await fetch(`${this.url}/rest/v1/applications?id=eq.${appId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          current_stage_name: currentStageName,
+          updated_at: new Date().toISOString()
+        })
+      });
     }
 
     // 插入环节
@@ -222,7 +229,7 @@ class SupabaseMobileService {
       headers,
       body: JSON.stringify({
         application_id: appId,
-        seq: maxSeq + 1,
+        seq: stageData.parallel_with_latest && maxSeq > 0 ? maxSeq : maxSeq + 1,
         stage_name: stageData.stage_name,
         stage_status: stageData.stage_status || 'scheduled',
         schedule_time: stageData.schedule_time || '待定',
