@@ -545,6 +545,7 @@ function setupEventListeners() {
 
             if (targetId === 'dashboard-view') renderDashboard();
             if (targetId === 'calendar-view') renderCalendar();
+            if (targetId === 'events-view') renderRecruitmentEvents();
             if (targetId === 'review-view') loadReviews();
         });
     });
@@ -969,6 +970,7 @@ function setupRealtimeListeners() {
             { event: '*', schema: 'public', table: 'application_stages' },
             () => loadAllData()
         )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'recruitment_events' }, () => loadAllData())
         .subscribe();
 
     loadAllData();
@@ -1037,6 +1039,7 @@ async function loadAllData() {
         if (ignoredBadge) ignoredBadge.textContent = ignoredStages.length;
 
         // 刷新渲染 4 大 KPI 数据卡、紧急通报栏、全景看板与审核大厅
+        await loadRecruitmentEvents();
         updateKPICards();
         renderUrgentBanner();
         renderDashboard();
@@ -1537,7 +1540,7 @@ function getCalendarEntries() {
         const date = parseScheduleDate(stage.schedule_time);
         const app = allApplications.find(item => item.id === stage.application_id);
         return date && app ? { stage, app, date, key: formatCalendarKey(date) } : null;
-    }).filter(Boolean).sort((a, b) => a.date - b.date);
+    }).filter(Boolean).concat(getRecruitmentEventCalendarEntries()).sort((a, b) => a.date - b.date);
 }
 
 function renderCalendar() {
@@ -1557,6 +1560,7 @@ function renderCalendar() {
         const key = formatCalendarKey(date);
         const items = entries.filter(item => item.key === key);
         const events = items.slice(0, 2).map(item => {
+            if (item.event) return '<span class="calendar-event calendar-event-fair">招聘会 · ' + escapeHTML(item.event.title) + '</span>';
             const category = getStageStatusMeta(item.stage, item.app).category;
             return `<span class="calendar-event calendar-event-${category}">${escapeHTML(item.app.company)} · ${escapeHTML(item.stage.stage_name)}</span>`;
         }).join('');
@@ -1578,6 +1582,7 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
         return;
     }
     list.innerHTML = items.map(item => {
+        if (item.event) return renderRecruitmentEventAgenda(item);
         const meta = getStageStatusMeta(item.stage, item.app);
         const time = String(item.stage.schedule_time).match(/\d{1,2}:\d{2}/)?.[0] || '全天';
         return `<button type="button" class="calendar-agenda-item" onclick="openTimelineDrawer('${item.app.id}')"><span class="calendar-agenda-time">${escapeHTML(time)}</span><strong>${escapeHTML(item.app.company)} · ${escapeHTML(item.stage.stage_name)}</strong><small>${escapeHTML(getCompactStageStatus(item.stage, meta))}</small></button>`;

@@ -46,6 +46,10 @@
                         <span class="nav-item-label">求职日历</span>
                     </button>
 
+                    <button class="sidebar-nav-item" data-target="events-view" id="nav-item-events" title="招聘会">
+                        <span class="nav-item-icon" aria-hidden="true">▤</span>
+                        <span class="nav-item-label">招聘会</span>
+                    </button>
                     <button class="sidebar-nav-item" data-target="review-view" id="nav-item-review" title="邮件待审准入 (快捷键 3)">
                         <span class="nav-item-icon" aria-hidden="true">◇</span>
                         <span class="nav-item-label">邮件待审准入</span>
@@ -209,6 +213,22 @@
             </section>
 
             <!-- 视图 3：新邮件待审大厅 (Review Gatekeeper View - Option A Apple Card Grid) -->
+            <section id="events-view" class="view-panel">
+                <header class="main-topbar">
+                    <div><h1 class="main-page-title">招聘会</h1><p class="main-page-desc">记录每一次线下相遇 · 与求职日历同步</p></div>
+                    <button class="btn-action-pill" onclick="openRecruitmentEvent()">＋ 新增招聘会</button>
+                </header>
+                <div class="events-toolbar">
+                    <input id="events-search" placeholder="搜索活动、主办方或地点" aria-label="搜索招聘会" oninput="renderRecruitmentEvents()">
+                    <div id="events-tabs" class="events-tabs">
+                        <button class="filter-chip active" onclick="setRecruitmentEventFilter('planned')">待参加</button>
+                        <button class="filter-chip" onclick="setRecruitmentEventFilter('attended')">已参加</button>
+                        <button class="filter-chip" onclick="setRecruitmentEventFilter('cancelled')">已取消</button>
+                    </div>
+                </div>
+                <p id="events-message" role="status"></p>
+                <div id="events-list" class="events-grid"></div>
+            </section>
             <section id="review-view" class="view-panel">
                 <header class="main-topbar">
                     <div class="topbar-title-group">
@@ -684,5 +704,6 @@
     <script src="/config.js"></script>
     <script src="/admin/supabase.js"></script>
     <script src="/admin/app.js"></script>
+    <script src="/admin/recruitment-events.js"></script>
 </body>
 </html>
