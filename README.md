@@ -359,7 +359,7 @@ Windows 端专为大屏求职管理打造，支持 **“免安装独立 EXE 运�
 
 首次启用先在 Supabase SQL Editor 执行 [recruitment_events.sql](supabase/recruitment_events.sql)，再刷新页面。
 脚本沿用个人版 anon-key 读写模式，不适合公开多用户部署；没有修改现有 ATS 表，也没有自动在云端执行。
-本次入口及日历联动属于 Web 管理端（Windows/Mac 共用）；Android 原生页面尚未接入。
+Windows、macOS Web 管理端与 Android 移动端共用同一套招聘会和重点关心数据。Android 底部“招聘会”页面支持新增、编辑、参加状态、日历开关及重点星标；企业卡片同样支持重点置顶，云端变更通过 Realtime 自动刷新。
 
 ![任务状态生命周期流转图](docs/assets/task-lifecycle-flow.svg)
 

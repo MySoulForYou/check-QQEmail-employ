@@ -159,6 +159,27 @@
         </div>
       </section>
 
+      <!-- ================= 视图 F: 招聘会管理 ================= -->
+      <section id="view-events" class="tab-view">
+        <header class="app-topbar events-mobile-topbar">
+          <div class="topbar-header-row">
+            <div class="brand-badge"><span class="sparkle-icon">🎪</span><span class="brand-text">招聘会</span></div>
+            <button class="btn-create-header" onclick="window.openRecruitmentEvent()"><span class="plus-icon">＋</span> 新增</button>
+          </div>
+          <div class="search-bar-wrap">
+            <span class="search-lens">🔍</span>
+            <input type="text" id="events-mobile-search" placeholder="搜索活动、主办方或地点" autocomplete="off" oninput="window.searchRecruitmentEvents(this.value)">
+          </div>
+          <div class="events-mobile-tabs">
+            <button class="active" data-event-filter="planned" onclick="window.setRecruitmentEventFilter('planned')">待参加</button>
+            <button data-event-filter="attended" onclick="window.setRecruitmentEventFilter('attended')">已参加</button>
+            <button data-event-filter="cancelled" onclick="window.setRecruitmentEventFilter('cancelled')">已取消</button>
+          </div>
+        </header>
+        <div id="events-mobile-message" class="events-mobile-message"></div>
+        <div id="events-mobile-list" class="events-mobile-list"></div>
+      </section>
+
       <!-- ================= 视图 B: 邮件待审与准入门禁大厅 (Review) ================= -->
       <section id="view-review" class="tab-view">
         <header class="app-topbar review-topbar">
@@ -696,6 +717,11 @@
       <button class="nav-btn" data-target="view-calendar" id="nav-btn-calendar">
         <span class="nav-icon">📅</span>
         <span class="nav-title">求职日历</span>
+      </button>
+
+      <button class="nav-btn" data-target="view-events" id="nav-btn-events">
+        <span class="nav-icon">🎪</span>
+        <span class="nav-title">招聘会</span>
       </button>
 
       <button class="nav-btn" data-target="view-review" id="nav-btn-review">

@@ -91,7 +91,7 @@ class SupabaseMobileService {
   }
 
   async fetchApplicationsWithStages() {
-    if (!this.url || !this.key) return { applications: [], stages: [] };
+    if (!this.url || !this.key) return { applications: [], stages: [], recruitmentEvents: [], recruitmentEventsError: '' };
 
     const headers = {
       'apikey': this.key,
@@ -108,7 +108,46 @@ class SupabaseMobileService {
     if (!stageRes.ok) throw new Error('拉取环节数据失败');
     const stages = await stageRes.json();
 
-    return { applications, stages };
+    // 3. 招聘会是独立记录；旧数据库尚未建表时不阻断企业数据加载。
+    const eventRes = await fetch(`${this.url}/rest/v1/recruitment_events?select=*&order=starts_at.asc`, { headers });
+    const recruitmentEvents = eventRes.ok ? await eventRes.json() : [];
+    const recruitmentEventsError = eventRes.ok ? '' : '招聘会数据暂不可用，请先执行 recruitment_events.sql。';
+
+    return { applications, stages, recruitmentEvents, recruitmentEventsError };
+  }
+
+  async updateApplicationFocus(appId, isFocused) {
+    return this.writeRecord('applications', 'PATCH', { is_focused: isFocused }, appId);
+  }
+
+  async saveRecruitmentEvent(payload, eventId = '') {
+    return this.writeRecord('recruitment_events', eventId ? 'PATCH' : 'POST', payload, eventId);
+  }
+
+  async updateRecruitmentEvent(eventId, changes) {
+    return this.writeRecord('recruitment_events', 'PATCH', changes, eventId);
+  }
+
+  async writeRecord(table, method, payload, id = '') {
+    if (!this.url || !this.key) throw new Error('未配置 Supabase');
+    const query = id ? `?id=eq.${encodeURIComponent(id)}` : '';
+    const res = await fetch(`${this.url}/rest/v1/${table}${query}`, {
+      method,
+      headers: {
+        'apikey': this.key,
+        'Authorization': `Bearer ${this.key}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(detail || '云端记录更新失败');
+    }
+    const rows = await res.json();
+    if (!rows.length) throw new Error('记录未更新，请刷新后重试');
+    return rows[0];
   }
 
   async updateStageStatus(stageId, newStatus) {
