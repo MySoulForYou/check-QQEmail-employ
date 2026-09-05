@@ -105,6 +105,10 @@ let currentReviewCategory = 'all';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedCalendarKey = formatCalendarKey(new Date());
 let urgentBannerExpanded = false;
+let urgentBannerOpen = false;
+let urgentBannerPinned = false;
+let urgentBannerOpenTimer = null;
+let urgentBannerCloseTimer = null;
 
 // ==========================================================================
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
@@ -541,6 +545,7 @@ function setupEventListeners() {
 
             if (targetId === 'dashboard-view') renderDashboard();
             if (targetId === 'calendar-view') renderCalendar();
+            if (targetId === 'events-view') renderRecruitmentEvents();
             if (targetId === 'review-view') loadReviews();
         });
     });
@@ -965,6 +970,7 @@ function setupRealtimeListeners() {
             { event: '*', schema: 'public', table: 'application_stages' },
             () => loadAllData()
         )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'recruitment_events' }, () => loadAllData())
         .subscribe();
 
     loadAllData();
@@ -1033,6 +1039,7 @@ async function loadAllData() {
         if (ignoredBadge) ignoredBadge.textContent = ignoredStages.length;
 
         // 刷新渲染 4 大 KPI 数据卡、紧急通报栏、全景看板与审核大厅
+        await loadRecruitmentEvents();
         updateKPICards();
         renderUrgentBanner();
         renderDashboard();
@@ -1211,8 +1218,14 @@ function renderUrgentBanner() {
 
     const visibleUrgentItems = urgentBannerExpanded ? urgentItems : urgentItems.slice(0, 3);
     const hiddenCount = urgentItems.length - visibleUrgentItems.length;
+    const overdueCount = urgentItems.filter(item => item.isOverdue).length;
+    const summaryText = overdueCount > 0
+        ? `${overdueCount} 项已逾期`
+        : `最近：${urgentItems[0].timeLabel}`;
 
     banner.style.display = 'block';
+    banner.classList.toggle('is-open', urgentBannerOpen || urgentBannerPinned);
+    banner.classList.toggle('is-pinned', urgentBannerPinned);
     banner.innerHTML = `
         <div class="urgent-banner-box">
             <div class="urgent-banner-header">
@@ -1220,13 +1233,20 @@ function renderUrgentBanner() {
                     <span class="urgent-pulse-indicator" aria-hidden="true"></span>
                     <span class="urgent-header-title">⚡ 近期紧要待办</span>
                     <span class="urgent-counter-pill">${urgentItems.length} 项日程</span>
+                    <span class="urgent-collapsed-summary">${escapeHTML(summaryText)}</span>
                 </div>
-                <button type="button" class="btn-urgent-cal-link" onclick="document.getElementById('nav-item-calendar')?.click()">
-                    📅 查看完整求职日历 ➔
-                </button>
+                <div class="urgent-header-actions">
+                    <button type="button" class="btn-urgent-cal-link" onclick="document.getElementById('nav-item-calendar')?.click()">
+                        📅 查看完整求职日历 ➔
+                    </button>
+                    <button type="button" class="btn-urgent-pin" onclick="toggleUrgentBannerPinned(event)" aria-pressed="${urgentBannerPinned}" title="${urgentBannerPinned ? '取消固定' : '固定展开'}">
+                        ${urgentBannerPinned ? '📌' : urgentBannerOpen ? '⌃' : '›'}
+                    </button>
+                </div>
             </div>
-            <div class="urgent-cards-scroll">
-                ${visibleUrgentItems.map(item => {
+            <div class="urgent-banner-content">
+                <div class="urgent-cards-scroll">
+                    ${visibleUrgentItems.map(item => {
                     const { stage, app, timeLabel, isToday, isTomorrow, isOverdue } = item;
                     const meta = getStageStatusMeta(stage, app);
                     const safeCompany = escapeHTML(app.company || '未知企业');
@@ -1271,20 +1291,85 @@ function renderUrgentBanner() {
                             </div>
                         </div>
                     `;
-                }).join('')}
+                    }).join('')}
+                </div>
+                ${urgentItems.length > 3 ? `
+                    <button type="button" class="btn-urgent-expand" onclick="toggleUrgentBannerExpanded()">
+                        ${urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项 ↓`}
+                    </button>
+                ` : ''}
             </div>
-            ${urgentItems.length > 3 ? `
-                <button type="button" class="btn-urgent-expand" onclick="toggleUrgentBannerExpanded()">
-                    ${urgentBannerExpanded ? '收起 ↑' : `查看其余 ${hiddenCount} 项 ↓`}
-                </button>
-            ` : ''}
         </div>
     `;
+    bindUrgentBannerInteractions();
 }
 
 function toggleUrgentBannerExpanded() {
     urgentBannerExpanded = !urgentBannerExpanded;
     renderUrgentBanner();
+}
+
+function applyUrgentBannerState() {
+    const banner = document.getElementById('urgent-action-banner');
+    if (!banner) return;
+    const isOpen = urgentBannerOpen || urgentBannerPinned;
+    banner.classList.toggle('is-open', isOpen);
+    banner.classList.toggle('is-pinned', urgentBannerPinned);
+    const pinButton = banner.querySelector('.btn-urgent-pin');
+    if (pinButton) {
+        pinButton.textContent = urgentBannerPinned ? '📌' : urgentBannerOpen ? '⌃' : '›';
+        pinButton.title = urgentBannerPinned ? '取消固定' : urgentBannerOpen ? '收起待办' : '展开并固定';
+        pinButton.setAttribute('aria-pressed', String(urgentBannerPinned));
+    }
+}
+
+function scheduleUrgentBannerOpen() {
+    clearTimeout(urgentBannerCloseTimer);
+    if (urgentBannerPinned) return;
+    clearTimeout(urgentBannerOpenTimer);
+    urgentBannerOpenTimer = setTimeout(() => {
+        urgentBannerOpen = true;
+        applyUrgentBannerState();
+    }, 150);
+}
+
+function scheduleUrgentBannerClose() {
+    clearTimeout(urgentBannerOpenTimer);
+    if (urgentBannerPinned) return;
+    clearTimeout(urgentBannerCloseTimer);
+    urgentBannerCloseTimer = setTimeout(() => {
+        urgentBannerOpen = false;
+        applyUrgentBannerState();
+    }, 300);
+}
+
+function toggleUrgentBannerPinned(event) {
+    event?.stopPropagation();
+    const supportsHover = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+    if (supportsHover) {
+        urgentBannerPinned = !urgentBannerPinned;
+        const banner = document.getElementById('urgent-action-banner');
+        urgentBannerOpen = urgentBannerPinned || Boolean(banner?.matches(':hover'));
+    } else {
+        urgentBannerOpen = !urgentBannerOpen;
+    }
+    applyUrgentBannerState();
+}
+
+function bindUrgentBannerInteractions() {
+    const banner = document.getElementById('urgent-action-banner');
+    if (!banner || banner.dataset.hoverBound === 'true') return;
+    banner.dataset.hoverBound = 'true';
+    banner.addEventListener('mouseenter', scheduleUrgentBannerOpen);
+    banner.addEventListener('mouseleave', scheduleUrgentBannerClose);
+    banner.addEventListener('focusin', () => {
+        clearTimeout(urgentBannerCloseTimer);
+        urgentBannerOpen = true;
+        applyUrgentBannerState();
+    });
+    banner.addEventListener('focusout', event => {
+        if (!banner.contains(event.relatedTarget)) scheduleUrgentBannerClose();
+    });
 }
 
 // ==========================================================================
@@ -1366,7 +1451,7 @@ function renderDashboard() {
         }
 
         return true;
-    });
+    }).sort((a, b) => Number(Boolean(b.is_focused)) - Number(Boolean(a.is_focused)));
 
     if (filteredApps.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="empty-state">没有匹配到符合当前筛选条件的企业或岗位</td></tr>';
@@ -1409,13 +1494,17 @@ function renderDashboard() {
         const pipelineHTML = generatePipelineHTML(stages);
 
         return `
-            <tr class="table-clickable-row" onclick="openTimelineDrawer('${app.id}')">
+            <tr class="table-clickable-row${app.is_focused ? ' is-focused' : ''}" onclick="openTimelineDrawer('${app.id}')">
                 <td>
                     <div class="company-cell">
                         <div class="comp-info">
                             <div class="comp-name-row">
                                 ${companyNameHTML}
                                 ${safeDept ? `<span class="dept-pill">${safeDept}</span>` : ''}
+                                <button type="button" class="focus-toggle${app.is_focused ? ' is-active' : ''}"
+                                    onclick="event.stopPropagation(); toggleApplicationFocus('${app.id}', ${!app.is_focused}, this)"
+                                    aria-label="${app.is_focused ? '取消重点关心' : '设为重点关心'}"
+                                    aria-pressed="${Boolean(app.is_focused)}" title="${app.is_focused ? '取消重点关心' : '设为重点关心'}">★</button>
                             </div>
                             <span class="comp-position" title="${safePos}">${safePos}</span>
                         </div>
@@ -1437,6 +1526,23 @@ function renderDashboard() {
     }).join('');
 }
 
+async function toggleApplicationFocus(id, isFocused, button) {
+    const app = allApplications.find(item => item.id === id);
+    if (!supabase || !app || !button) return;
+    button.disabled = true;
+    try {
+        const result = await supabase.from('applications').update({ is_focused: isFocused }).eq('id', id);
+        if (result.error) throw result.error;
+        if (!result.data?.length) throw new Error('记录未更新，请刷新后重试。');
+        app.is_focused = isFocused;
+        renderDashboard();
+        showAdminToast(isFocused ? '已设为重点关心' : '已取消重点关心', app.company || '求职企业');
+    } catch (error) {
+        showAdminToast('更新失败', `${error.message || '请检查数据库连接'}。首次启用请执行 focus_flags.sql。`);
+        button.disabled = false;
+    }
+}
+
 function parseScheduleDate(value) {
     const matched = String(value || '').trim().match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})(?:日)?(?:\s+(\d{1,2}):(\d{2}))?/);
     if (!matched) return null;
@@ -1455,7 +1561,7 @@ function getCalendarEntries() {
         const date = parseScheduleDate(stage.schedule_time);
         const app = allApplications.find(item => item.id === stage.application_id);
         return date && app ? { stage, app, date, key: formatCalendarKey(date) } : null;
-    }).filter(Boolean).sort((a, b) => a.date - b.date);
+    }).filter(Boolean).concat(getRecruitmentEventCalendarEntries()).sort((a, b) => a.date - b.date);
 }
 
 function renderCalendar() {
@@ -1475,6 +1581,7 @@ function renderCalendar() {
         const key = formatCalendarKey(date);
         const items = entries.filter(item => item.key === key);
         const events = items.slice(0, 2).map(item => {
+            if (item.event) return '<span class="calendar-event calendar-event-fair">招聘会 · ' + escapeHTML(item.event.title) + '</span>';
             const category = getStageStatusMeta(item.stage, item.app).category;
             return `<span class="calendar-event calendar-event-${category}">${escapeHTML(item.app.company)} · ${escapeHTML(item.stage.stage_name)}</span>`;
         }).join('');
@@ -1496,6 +1603,7 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
         return;
     }
     list.innerHTML = items.map(item => {
+        if (item.event) return renderRecruitmentEventAgenda(item);
         const meta = getStageStatusMeta(item.stage, item.app);
         const time = String(item.stage.schedule_time).match(/\d{1,2}:\d{2}/)?.[0] || '全天';
         return `<button type="button" class="calendar-agenda-item" onclick="openTimelineDrawer('${item.app.id}')"><span class="calendar-agenda-time">${escapeHTML(time)}</span><strong>${escapeHTML(item.app.company)} · ${escapeHTML(item.stage.stage_name)}</strong><small>${escapeHTML(getCompactStageStatus(item.stage, meta))}</small></button>`;
