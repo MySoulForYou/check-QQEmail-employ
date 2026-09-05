@@ -360,6 +360,18 @@ function getStageProgressCategory(app, latestStage) {
   return 'other';
 }
 
+function getLatestStageContext(stages) {
+  if (!stages?.length) return { latestStages: [], representative: null, status: '' };
+  const latestSeq = Math.max(...stages.map(stage => stage.seq || 1));
+  const latestStages = stages.filter(stage => (stage.seq || 1) === latestSeq);
+  const status = latestStages.some(stage => stage.stage_status === 'offered') ? 'offered'
+    : latestStages.some(stage => stage.stage_status === 'scheduled') ? 'scheduled'
+    : latestStages.some(stage => stage.stage_status === 'awaiting_result') ? 'awaiting_result'
+    : latestStages[latestStages.length - 1]?.stage_status || '';
+  const representative = latestStages.find(stage => stage.stage_status === status) || latestStages[latestStages.length - 1];
+  return { latestStages, representative, status };
+}
+
 function getScheduleType(stage) {
   const explicit = String(stage?.schedule_type || '').toLowerCase();
   if (explicit === 'start' || explicit === 'deadline') return explicit;
@@ -390,15 +402,16 @@ function updateKPIStats() {
       .sort((a, b) => (a.seq || 1) - (b.seq || 1));
     if (stages.length === 0) return;
 
-    const latestStage = stages[stages.length - 1];
+    const latestContext = getLatestStageContext(stages);
+    const latestStage = latestContext.representative;
     const category = getStageProgressCategory(app, latestStage);
 
     if (category === 'offer' || app.overall_status === 'offered' || latestStage.stage_status === 'offered') {
       offerCount++;
-    } else if (latestStage.stage_status === 'awaiting_result') {
-      waitingResultsCount++;
-    } else if (latestStage.stage_status === 'scheduled') {
+    } else if (latestContext.status === 'scheduled') {
       todoCount++;
+    } else if (latestContext.status === 'awaiting_result') {
+      waitingResultsCount++;
     }
   });
 
@@ -482,9 +495,10 @@ function renderDashboard() {
     const validStages = state.stages
       .filter(s => s.application_id === app.id && s.stage_status !== 'ignored' && s.stage_status !== 'pending')
       .sort((a, b) => (a.seq || 1) - (b.seq || 1));
-    const latestStage = validStages.length > 0 ? validStages[validStages.length - 1] : null;
+    const latestContext = getLatestStageContext(validStages);
+    const latestStage = latestContext.representative;
     const progressCategory = getStageProgressCategory(app, latestStage);
-    return { ...app, stages: validStages, latestStage, progressCategory };
+    return { ...app, stages: validStages, latestStage, latestStatus: latestContext.status, progressCategory };
   });
 
   // 3. 搜索过滤
@@ -506,10 +520,10 @@ function renderDashboard() {
     }
   } else if (state.activeBento === 'todo') {
     // 待测评/投递/笔试/面试：最新环节为 scheduled
-    list = list.filter(app => app.latestStage && app.latestStage.stage_status === 'scheduled');
+    list = list.filter(app => app.latestStatus === 'scheduled');
   } else if (state.activeBento === 'waiting') {
     // 等待结果中：最新环节为 awaiting_result
-    list = list.filter(app => app.latestStage && app.latestStage.stage_status === 'awaiting_result');
+    list = list.filter(app => app.latestStatus === 'awaiting_result');
   } else if (state.activeBento === 'offer') {
     // 已录用：overall_status === 'offered' 或最新环节为 offer
     list = list.filter(app => app.progressCategory === 'offer' || app.overall_status === 'offered');
