@@ -1262,6 +1262,11 @@ body {
     cursor: pointer;
 }
 
+.table-clickable-row.is-focused td:first-child {
+    box-shadow: inset 3px 0 #F59E0B;
+    background: linear-gradient(90deg, rgba(251, 191, 36, .09), transparent 72%);
+}
+
 .data-table tbody tr:hover {
     background-color: var(--bg-hover);
 }
@@ -1289,6 +1294,26 @@ body {
     gap: 6px;
     min-width: 0;
 }
+
+.focus-toggle {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid #E8E2D8;
+    border-radius: 50%;
+    background: #FFF;
+    color: #C8BFAF;
+    font: 700 15px/1 inherit;
+    cursor: pointer;
+    transition: transform .16s ease, color .16s ease, background .16s ease, border-color .16s ease;
+}
+
+.focus-toggle:hover { transform: translateY(-1px) scale(1.04); border-color: #F2C75C; color: #D99500; }
+.focus-toggle.is-active { color: #B96B00; background: #FFF3C4; border-color: #F5C34B; box-shadow: 0 4px 12px rgba(217, 149, 0, .14); }
+.focus-toggle:focus-visible { outline: 3px solid rgba(245, 158, 11, .25); outline-offset: 2px; }
+.focus-toggle:disabled { cursor: wait; opacity: .55; }
 
 .comp-title {
     font-size: 0.92rem;
@@ -1435,7 +1460,9 @@ body {
 .events-tabs { display:flex; gap:8px; }
 .events-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:20px; }
 .event-card { padding:24px; border:1px solid var(--border-subtle); border-radius:22px; background:white; box-shadow:var(--shadow-sm); min-width:0; }
+.event-card.is-focused { border-color:#F2C75C; box-shadow:0 12px 30px rgba(180, 110, 0, .10); background:linear-gradient(145deg, #FFFDF8, #FFF); }
 .event-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.event-card-top-actions { display:flex; align-items:center; justify-content:flex-end; gap:9px; }
 .event-card h2 { font-size:1.15rem; margin:16px 0 8px; overflow-wrap:anywhere; }
 .event-card p { color:var(--text-sub); font-size:.85rem; line-height:1.7; overflow-wrap:anywhere; }
 .event-card .event-time { color:var(--text-main); background:#FAF8F5; padding:12px; border-radius:12px; font-variant-numeric:tabular-nums; }

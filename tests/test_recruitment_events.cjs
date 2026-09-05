@@ -59,11 +59,19 @@ test('save persists one independent event and calendar choice', async () => {
     const values = { id: '', title: ' 校园双选会 ', organizer: '学校', event_type: '双选会', location: '体育馆', url: '', notes: '', starts_at: '2026-09-06T10:00', ends_at: '', status: 'planned' };
     const fields = Object.fromEntries(Object.entries(values).map(([key,value]) => [key,{value}]));
     fields.in_calendar = { checked: true };
+    fields.is_focused = { checked: true };
     await api.saveRecruitmentEvent({ preventDefault() {}, currentTarget: { elements: fields, querySelector: () => ({disabled:false}) } });
     assert.equal(saved.length, 1);
     assert.equal(saved[0].title, '校园双选会');
     assert.equal(saved[0].in_calendar, true);
+    assert.equal(saved[0].is_focused, true);
     assert.equal(saved[0].ends_at, null);
     assert.equal(saved[0].starts_at, new Date(values.starts_at).toISOString());
     assert.equal(saved[0].application_id, undefined);
+});
+
+test('focus migration covers both applications and recruitment events', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '../supabase/focus_flags.sql'), 'utf8');
+    assert.match(sql, /ALTER TABLE public\.applications[\s\S]*is_focused/);
+    assert.match(sql, /ALTER TABLE public\.recruitment_events[\s\S]*is_focused/);
 });

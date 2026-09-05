@@ -12,12 +12,15 @@ CREATE TABLE IF NOT EXISTS public.recruitment_events (
     url TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'attended', 'cancelled')),
+    is_focused BOOLEAN NOT NULL DEFAULT FALSE,
     in_calendar BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (ends_at IS NULL OR ends_at >= starts_at)
 );
+ALTER TABLE public.recruitment_events ADD COLUMN IF NOT EXISTS is_focused BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_recruitment_events_start ON public.recruitment_events(starts_at);
+CREATE INDEX IF NOT EXISTS idx_recruitment_events_focused ON public.recruitment_events(is_focused) WHERE is_focused = TRUE;
 ALTER TABLE public.recruitment_events ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN

@@ -1451,7 +1451,7 @@ function renderDashboard() {
         }
 
         return true;
-    });
+    }).sort((a, b) => Number(Boolean(b.is_focused)) - Number(Boolean(a.is_focused)));
 
     if (filteredApps.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="empty-state">没有匹配到符合当前筛选条件的企业或岗位</td></tr>';
@@ -1494,13 +1494,17 @@ function renderDashboard() {
         const pipelineHTML = generatePipelineHTML(stages);
 
         return `
-            <tr class="table-clickable-row" onclick="openTimelineDrawer('${app.id}')">
+            <tr class="table-clickable-row${app.is_focused ? ' is-focused' : ''}" onclick="openTimelineDrawer('${app.id}')">
                 <td>
                     <div class="company-cell">
                         <div class="comp-info">
                             <div class="comp-name-row">
                                 ${companyNameHTML}
                                 ${safeDept ? `<span class="dept-pill">${safeDept}</span>` : ''}
+                                <button type="button" class="focus-toggle${app.is_focused ? ' is-active' : ''}"
+                                    onclick="event.stopPropagation(); toggleApplicationFocus('${app.id}', ${!app.is_focused}, this)"
+                                    aria-label="${app.is_focused ? '取消重点关心' : '设为重点关心'}"
+                                    aria-pressed="${Boolean(app.is_focused)}" title="${app.is_focused ? '取消重点关心' : '设为重点关心'}">★</button>
                             </div>
                             <span class="comp-position" title="${safePos}">${safePos}</span>
                         </div>
@@ -1520,6 +1524,23 @@ function renderDashboard() {
             </tr>
         `;
     }).join('');
+}
+
+async function toggleApplicationFocus(id, isFocused, button) {
+    const app = allApplications.find(item => item.id === id);
+    if (!supabase || !app || !button) return;
+    button.disabled = true;
+    try {
+        const result = await supabase.from('applications').update({ is_focused: isFocused }).eq('id', id);
+        if (result.error) throw result.error;
+        if (!result.data?.length) throw new Error('记录未更新，请刷新后重试。');
+        app.is_focused = isFocused;
+        renderDashboard();
+        showAdminToast(isFocused ? '已设为重点关心' : '已取消重点关心', app.company || '求职企业');
+    } catch (error) {
+        showAdminToast('更新失败', `${error.message || '请检查数据库连接'}。首次启用请执行 focus_flags.sql。`);
+        button.disabled = false;
+    }
 }
 
 function parseScheduleDate(value) {

@@ -37,11 +37,14 @@ function renderRecruitmentEvents() {
         button.classList.toggle('active', ['planned', 'attended', 'cancelled'][index] === recruitmentEventFilter);
     });
     const items = recruitmentEvents.filter(event => event.status === recruitmentEventFilter &&
-        [event.title, event.organizer, event.location].some(value => String(value || '').toLowerCase().includes(query)));
+        [event.title, event.organizer, event.location].some(value => String(value || '').toLowerCase().includes(query)))
+        .sort((a, b) => Number(Boolean(b.is_focused)) - Number(Boolean(a.is_focused)) || new Date(a.starts_at) - new Date(b.starts_at));
     list.innerHTML = items.length ? items.map(event => {
         const url = normalizeWebsite(event.url);
-        return '<article class="event-card">' +
-            '<div class="event-card-top"><span class="badge-tag badge-purple">' + escapeHTML(event.event_type) + '</span><span class="time-hint">' + (event.in_calendar && event.status !== 'cancelled' ? '已加入日历' : '未加入日历') + '</span></div>' +
+        return '<article class="event-card' + (event.is_focused ? ' is-focused' : '') + '">' +
+            '<div class="event-card-top"><span class="badge-tag badge-purple">' + escapeHTML(event.event_type) + '</span><div class="event-card-top-actions">' +
+            '<button type="button" class="focus-toggle' + (event.is_focused ? ' is-active' : '') + '" onclick="toggleRecruitmentEventFocus(\'' + event.id + '\', this)" aria-label="' + (event.is_focused ? '取消重点关心' : '设为重点关心') + '" aria-pressed="' + Boolean(event.is_focused) + '" title="' + (event.is_focused ? '取消重点关心' : '设为重点关心') + '">★</button>' +
+            '<span class="time-hint">' + (event.in_calendar && event.status !== 'cancelled' ? '已加入日历' : '未加入日历') + '</span></div></div>' +
             '<h2>' + escapeHTML(event.title) + '</h2><p>' + escapeHTML(event.organizer || '主办方未填写') + '</p>' +
             '<p class="event-time">开始 · ' + escapeHTML(eventTimeText(event.starts_at)) + (event.ends_at ? '<br>结束 · ' + escapeHTML(eventTimeText(event.ends_at)) : '') + '</p>' +
             '<p>地点 · ' + escapeHTML(event.location || '线上 / 待补充') + '</p>' +
@@ -83,6 +86,7 @@ function openRecruitmentEvent(id) {
         '<label class="event-field">线上 / 活动链接<input name="url" type="url" placeholder="https://…"></label>' +
         '<label class="event-field">参加状态<select name="status"><option value="planned">待参加</option><option value="attended">已参加</option><option value="cancelled">已取消</option></select></label>' +
         '<label class="event-field">备注<textarea name="notes" rows="3" placeholder="目标企业、简历份数、注意事项"></textarea></label>' +
+        '<label><input name="is_focused" type="checkbox"> 设为重点关心（在列表中优先显示）</label>' +
         '<label><input name="in_calendar" type="checkbox"> 加入求职日历（取消活动后自动隐藏）</label>' +
         '<p id="event-form-message" role="status"></p></div>' +
         '<div class="modal-footer"><button type="button" class="btn-modal-cancel" onclick="closeRecruitmentEvent()">取消</button><button type="submit" class="btn-modal-submit">保存活动</button></div></form></div>';
@@ -92,6 +96,7 @@ function openRecruitmentEvent(id) {
     form.elements.status.value = event.status || 'planned';
     form.elements.starts_at.value = eventLocalInput(event.starts_at);
     form.elements.ends_at.value = eventLocalInput(event.ends_at);
+    form.elements.is_focused.checked = Boolean(event.is_focused);
     form.elements.in_calendar.checked = event.in_calendar !== false;
     form.onsubmit = saveRecruitmentEvent;
     modal.style.display = 'flex';
@@ -122,7 +127,8 @@ async function saveRecruitmentEvent(e) {
         title: fields.title.value.trim(), organizer: fields.organizer.value.trim(),
         event_type: fields.event_type.value, location: fields.location.value.trim(), url,
         notes: fields.notes.value.trim(), starts_at: start.toISOString(), ends_at: end ? end.toISOString() : null,
-        status: fields.status.value, in_calendar: fields.in_calendar.checked, updated_at: new Date().toISOString()
+        status: fields.status.value, is_focused: Boolean(fields.is_focused?.checked),
+        in_calendar: fields.in_calendar.checked, updated_at: new Date().toISOString()
     };
     button.disabled = true;
     try {
@@ -140,7 +146,7 @@ async function saveRecruitmentEvent(e) {
     } finally { button.disabled = false; }
 }
 
-async function updateRecruitmentEvent(id, changes, button) {
+async function updateRecruitmentEvent(id, changes, button, successMessage = '招聘会已更新') {
     if (!supabase || !recruitmentEvents.some(event => event.id === id)) return;
     button.disabled = true;
     try {
@@ -149,9 +155,19 @@ async function updateRecruitmentEvent(id, changes, button) {
         if (!result.data?.length) throw new Error('记录未更新，请刷新后重试。');
         await loadRecruitmentEvents();
         renderCalendar();
-        showAdminToast('招聘会已更新');
+        if (successMessage) showAdminToast(successMessage);
     } catch (error) { showAdminToast('更新失败', error.message); }
     finally { button.disabled = false; }
+}
+
+async function toggleRecruitmentEventFocus(id, button) {
+    const event = recruitmentEvents.find(item => item.id === id);
+    if (!event) return;
+    const isFocused = !event.is_focused;
+    await updateRecruitmentEvent(id, { is_focused: isFocused }, button, '');
+    if (recruitmentEvents.find(item => item.id === id)?.is_focused === isFocused) {
+        showAdminToast(isFocused ? '已设为重点关心' : '已取消重点关心', event.title);
+    }
 }
 
 function getRecruitmentEventCalendarEntries() {
@@ -165,6 +181,6 @@ function getRecruitmentEventCalendarEntries() {
 function renderRecruitmentEventAgenda(item) {
     return '<button type="button" class="calendar-agenda-item" onclick="openRecruitmentEvent(\'' + item.event.id + '\')">' +
         '<span class="calendar-agenda-time">' + escapeHTML(item.date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span>' +
-        '<strong>招聘会 · ' + escapeHTML(item.event.title) + '</strong><small>' +
+        '<strong>' + (item.event.is_focused ? '★ ' : '') + '招聘会 · ' + escapeHTML(item.event.title) + '</strong><small>' +
         escapeHTML(eventStatusLabels[item.event.status] + ' · ' + (item.event.location || '线上 / 待补充')) + '</small></button>';
 }

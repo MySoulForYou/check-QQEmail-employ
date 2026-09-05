@@ -355,6 +355,8 @@ Windows 端专为大屏求职管理打造，支持 **“免安装独立 EXE 运�
 支持待参加、已参加、已取消三个页签和搜索；勾选“加入求职日历”后以活动开始日期显示在日历中。
 活动编辑与日历共用一条记录；已参加的活动保留历史日程，已取消的活动隐藏，不影响企业投递与 Offer 统计。
 
+招聘会与求职企业均可点击星标设为“重点关心”；重点项会在各自列表中优先显示，标记通过 Supabase 实时同步。升级已有数据库时需额外执行 [focus_flags.sql](supabase/focus_flags.sql)。
+
 首次启用先在 Supabase SQL Editor 执行 [recruitment_events.sql](supabase/recruitment_events.sql)，再刷新页面。
 脚本沿用个人版 anon-key 读写模式，不适合公开多用户部署；没有修改现有 ATS 表，也没有自动在云端执行。
 本次入口及日历联动属于 Web 管理端（Windows/Mac 共用）；Android 原生页面尚未接入。
