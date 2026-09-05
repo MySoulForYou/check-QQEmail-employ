@@ -1085,6 +1085,18 @@ function getStageProgressCategory(app, latestStage) {
     return 'other';
 }
 
+function getLatestStageContext(stages) {
+    if (!stages?.length) return { latestStages: [], representative: null, status: '' };
+    const latestSeq = Math.max(...stages.map(stage => stage.seq || 1));
+    const latestStages = stages.filter(stage => (stage.seq || 1) === latestSeq);
+    const status = latestStages.some(stage => stage.stage_status === 'offered') ? 'offered'
+        : latestStages.some(stage => stage.stage_status === 'scheduled') ? 'scheduled'
+        : latestStages.some(stage => stage.stage_status === 'awaiting_result') ? 'awaiting_result'
+        : latestStages[latestStages.length - 1]?.stage_status || '';
+    const representative = latestStages.find(stage => stage.stage_status === status) || latestStages[latestStages.length - 1];
+    return { latestStages, representative, status };
+}
+
 // ==========================================================================
 // 7. 顶部 4 大 KPI 数据指标卡动态计算 (待办/结果客观状态维度)
 // ==========================================================================
@@ -1111,15 +1123,16 @@ function updateKPICards() {
             .sort((a, b) => (a.seq || 1) - (b.seq || 1));
         if (stages.length === 0) return;
 
-        const latestStage = stages[stages.length - 1];
+        const latestContext = getLatestStageContext(stages);
+        const latestStage = latestContext.representative;
         const category = getStageProgressCategory(app, latestStage);
 
         if (category === 'offer' || app.overall_status === 'offered' || latestStage.stage_status === 'offered') {
             offerCount++;
-        } else if (latestStage.stage_status === 'awaiting_result') {
-            waitingResultsCount++;
-        } else if (latestStage.stage_status === 'scheduled') {
+        } else if (latestContext.status === 'scheduled') {
             todoCount++;
+        } else if (latestContext.status === 'awaiting_result') {
+            waitingResultsCount++;
         }
     });
 
@@ -1411,7 +1424,8 @@ function renderDashboard() {
     const filteredApps = approvedApplications.filter(app => {
         const stages = (app.stages || []).filter(s => s.stage_status !== 'ignored' && s.stage_status !== 'pending')
             .sort((a, b) => (a.seq || 1) - (b.seq || 1));
-        const latestStage = stages.length > 0 ? stages[stages.length - 1] : null;
+        const latestContext = getLatestStageContext(stages);
+        const latestStage = latestContext.representative;
         const progressCategory = getStageProgressCategory(app, latestStage);
 
         // 文本模糊搜索 (支持公司、部门、岗位、环节)
@@ -1430,9 +1444,9 @@ function renderDashboard() {
         if (currentBentoFilter === 'all') {
             if (currentProgressFilter !== 'terminated' && (app.overall_status === 'archived' || progressCategory === 'terminated')) return false;
         } else if (currentBentoFilter === 'todo') {
-            if (!latestStage || latestStage.stage_status !== 'scheduled') return false;
+            if (latestContext.status !== 'scheduled') return false;
         } else if (currentBentoFilter === 'waiting') {
-            if (!latestStage || latestStage.stage_status !== 'awaiting_result') return false;
+            if (latestContext.status !== 'awaiting_result') return false;
         } else if (currentBentoFilter === 'offer') {
             if (app.overall_status !== 'offered' && progressCategory !== 'offer' && (!latestStage || latestStage.stage_status !== 'offered')) return false;
         }
@@ -1461,7 +1475,8 @@ function renderDashboard() {
     tbody.innerHTML = filteredApps.map(app => {
         const stages = (app.stages || []).filter(s => s.stage_status !== 'ignored' && s.stage_status !== 'pending')
             .sort((a, b) => (a.seq || 1) - (b.seq || 1));
-        const latestStage = stages.length > 0 ? stages[stages.length - 1] : null;
+        const latestContext = getLatestStageContext(stages);
+        const latestStage = latestContext.representative;
         const meta = getStageStatusMeta(latestStage, app);
         const compactStatus = getCompactStageStatus(latestStage, meta);
 
@@ -1470,8 +1485,7 @@ function renderDashboard() {
         const safePos = escapeHTML(app.position || '校招投递岗位');
         const companyNameHTML = renderCompanyName(app, safeCompany, 'comp-title');
 
-        const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
-        const latestStageGroup = stages.filter(stage => (stage.seq || 1) === latestSeq);
+        const latestStageGroup = latestContext.latestStages;
         const timeHTML = latestStageGroup.length > 0 ? latestStageGroup.map(stage => {
             const scheduleType = getScheduleType(stage);
             const typeLabel = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '待定';
