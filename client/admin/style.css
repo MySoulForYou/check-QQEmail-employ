@@ -1758,6 +1758,38 @@ body {
     gap: 10px;
 }
 
+.review-card-event-tags {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.review-event-tag,
+.review-related-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.review-event-new { color: #4338CA; background: #EEF2FF; border-color: #C7D2FE; }
+.review-event-reminder { color: #047857; background: #ECFDF5; border-color: #A7F3D0; }
+.review-event-reschedule { color: #B45309; background: #FFFBEB; border-color: #FDE68A; }
+.review-event-result { color: #6D28D9; background: #F5F3FF; border-color: #DDD6FE; }
+.review-event-cancel { color: #B91C1C; background: #FEF2F2; border-color: #FECACA; }
+
+.review-related-count {
+    color: #64748B;
+    background: #F8FAFC;
+    border-color: #E2E8F0;
+}
+
 .review-card-company-group {
     display: flex;
     align-items: center;

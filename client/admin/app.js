@@ -92,9 +92,11 @@ function openOriginalEmail(rawSubject, company, event) {
 let supabase = null;
 let realtimeChannelApps = null;
 let realtimeChannelStages = null;
+let realtimeChannelNotifications = null;
 
 let allApplications = [];
 let allStages = [];
+let allStageNotifications = [];
 let allJobOpportunities = [];
 let appStagesMap = {}; // application_id -> [stages...]
 
@@ -127,6 +129,18 @@ function getStageStatusMetaRaw(stage, app) {
     const type = (stage.stage_name || '').trim();
     const status = stage.stage_status || 'pending';
     const nextExp = (stage.next_expectation || '').trim();
+
+    if (status === 'cancelled') {
+        return {
+            icon: '×',
+            cleanType: `【${type || '求职安排'}】`,
+            badgeText: `【${type || '求职安排'}】已取消`,
+            badgeClass: 'badge-gray',
+            nodeIcon: '−',
+            timelineStatusText: '安排已取消',
+            category: 'archived'
+        };
+    }
 
     // 1. 感谢信 / 流程终止 / 归档
     if (type.includes('感谢信') || type.includes('终止') || type.includes('结束') || type.includes('未通过') || type.includes('遗憾') || status === 'failed') {
@@ -460,6 +474,9 @@ function generatePipelineHTML(stages) {
         }
         group.stages.push(stage);
     });
+    groups.forEach((group, index) => {
+        group.displaySeq = index + 1;
+    });
 
     const renderStep = (s) => {
         const isLatest = (s.seq || 1) === maxSeq;
@@ -526,7 +543,7 @@ function generatePipelineHTML(stages) {
                 <li class="pipeline-history-item">
                     <span class="pipeline-history-check" aria-hidden="true">✓</span>
                     <div class="pipeline-history-content">
-                        <span class="pipeline-history-round">第 ${group.seq} 轮</span>
+                        <span class="pipeline-history-round">第 ${group.displaySeq} 轮</span>
                         ${stageDetails}
                     </div>
                 </li>
@@ -1125,6 +1142,9 @@ function setupRealtimeListeners() {
     if (realtimeChannelStages) {
         try { realtimeChannelStages.unsubscribe(); } catch(e) {}
     }
+    if (realtimeChannelNotifications) {
+        try { realtimeChannelNotifications.unsubscribe(); } catch(e) {}
+    }
 
     // 监听 applications 主表与 application_stages 子表的实时变动
     realtimeChannelApps = supabase
@@ -1141,6 +1161,15 @@ function setupRealtimeListeners() {
         .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'application_stages' },
+            () => loadAllData()
+        )
+        .subscribe();
+
+    realtimeChannelNotifications = supabase
+        .channel('admin_stage_notifications_realtime')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'stage_notifications' },
             () => loadAllData()
         )
         .subscribe();
@@ -1166,6 +1195,11 @@ async function loadAllData() {
             .select('*')
             .order('seq', { ascending: true });
 
+        const resNotifications = await supabase
+            .from('stage_notifications')
+            .select('*')
+            .order('received_at', { ascending: true });
+
         const resJobs = await supabase
             .from('job_opportunities')
             .select('*')
@@ -1176,7 +1210,9 @@ async function loadAllData() {
 
         allApplications = resApps.data || [];
         allStages = resStages.data || [];
+        allStageNotifications = resNotifications.error ? [] : (resNotifications.data || []);
         allJobOpportunities = resJobs.error ? [] : (resJobs.data || []);
+        if (resNotifications.error) console.info('邮件事件表尚未启用，请执行 stage_notifications.sql:', resNotifications.error.message);
         if (resJobs.error) console.info('招聘需求表尚未启用:', resJobs.error.message);
 
         // 构建 application_id -> [stages] 映射表
@@ -1195,8 +1231,14 @@ async function loadAllData() {
         });
 
         // 待审核任务（pending 状态）与已忽略任务（ignored 状态）
-        const reviewStages = allStages.filter(s => s.stage_status === 'pending');
-        const ignoredStages = allStages.filter(s => s.stage_status === 'ignored');
+        const reviewStages = [
+            ...allStages.filter(s => s.stage_status === 'pending').map(s => ({ ...s, _reviewKind: 'legacy_stage' })),
+            ...allStageNotifications.filter(n => n.review_status === 'pending').map(toReviewDisplayItem),
+        ];
+        const ignoredStages = [
+            ...allStages.filter(s => s.stage_status === 'ignored').map(s => ({ ...s, _reviewKind: 'legacy_stage' })),
+            ...allStageNotifications.filter(n => n.review_status === 'ignored').map(toReviewDisplayItem),
+        ];
 
         // 更新待审角标与已忽略角标
         const badge = document.getElementById('review-badge');
@@ -1714,6 +1756,8 @@ function openTimelineDrawer(appId) {
 
     // 🎯 核心升级：按 seq DESC 倒序排列（最新进展在最上方！）
     const reverseStages = [...stages].sort((a, b) => (b.seq || 1) - (a.seq || 1));
+    const visibleSeqs = [...new Set(stages.map(stage => stage.seq || 1))].sort((a, b) => a - b);
+    const displaySeqByActual = new Map(visibleSeqs.map((seq, index) => [seq, index + 1]));
     const latestStage = reverseStages[0];
     const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
     const latestStages = reverseStages.filter(stage => (stage.seq || 1) === latestSeq);
@@ -1742,6 +1786,13 @@ function openTimelineDrawer(appId) {
             const safeTime = escapeHTML(s.schedule_time || '时间待定');
             const safeMeeting = normalizeWebsite(s.meeting_info);
             const safeNotes = escapeHTML(s.notes || '');
+            const linkedNotifications = allStageNotifications.filter(notification =>
+                notification.stage_id === s.id && notification.review_status === 'approved'
+            );
+            const linkedEmailTitle = linkedNotifications
+                .map(notification => notification.raw_subject || notification.event_type)
+                .filter(Boolean)
+                .join('；');
 
             let dateStr = '通知时间';
             if (s.created_at) {
@@ -1804,7 +1855,7 @@ function openTimelineDrawer(appId) {
                     <div class="timeline-card">
                         <div class="timeline-header">
                             <div class="timeline-stage-name">
-                                ${meta.icon} 第${s.seq || 1}轮 · ${safeType}
+                                ${meta.icon} 第${displaySeqByActual.get(s.seq || 1) || 1}轮 · ${safeType}
                                 ${isLatest ? `<span class="badge-tag badge-emerald" style="font-size:0.7rem;padding:2px 8px;margin-left:6px;">${isParallel ? '并列进行中' : '最新进展'}</span>` : ''}
                             </div>
                             <span class="timeline-timestamp">${dateStr}</span>
@@ -1826,6 +1877,11 @@ function openTimelineDrawer(appId) {
                                 <a class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.75rem;border-radius:var(--radius-full);" href="${escapeHTML(safeMeeting)}" target="_blank" rel="noopener noreferrer">
                                     🌐 公司官网 ↗
                                 </a>
+                            ` : ''}
+                            ${linkedNotifications.length > 1 ? `
+                                <span class="review-related-count" title="${escapeHTML(linkedEmailTitle)}">
+                                    共关联 ${linkedNotifications.length} 封邮件
+                                </span>
                             ` : ''}
                         </div>
 
@@ -2156,20 +2212,59 @@ function switchReviewSubtab(subtab) {
         if (btnIgnored) btnIgnored.classList.remove('active');
         if (containerPending) containerPending.style.display = 'grid';
         if (containerIgnored) containerIgnored.style.display = 'none';
-        const pendingStages = allStages.filter(s => s.stage_status === 'pending');
-        renderReviews(pendingStages);
+        renderReviews(getReviewItems('pending'));
     } else {
         if (btnPending) btnPending.classList.remove('active');
         if (btnIgnored) btnIgnored.classList.add('active');
         if (containerPending) containerPending.style.display = 'none';
         if (containerIgnored) containerIgnored.style.display = 'grid';
-        const ignoredStages = allStages.filter(s => s.stage_status === 'ignored');
-        renderIgnoredReviews(ignoredStages);
+        renderIgnoredReviews(getReviewItems('ignored'));
     }
 }
 
 async function loadReviews() {
     await loadAllData();
+}
+
+const REVIEW_EVENT_META = {
+    new_stage: { label: '新阶段', icon: '＋', className: 'review-event-new', approveLabel: '准入并创建阶段' },
+    reminder: { label: '提醒', icon: '↻', className: 'review-event-reminder', approveLabel: '关联到当前阶段' },
+    reschedule: { label: '改期', icon: '◷', className: 'review-event-reschedule', approveLabel: '确认更新安排' },
+    result: { label: '结果', icon: '✓', className: 'review-event-result', approveLabel: '确认更新结果' },
+    cancel: { label: '取消', icon: '×', className: 'review-event-cancel', approveLabel: '确认取消安排' },
+};
+
+function toReviewDisplayItem(notification) {
+    return {
+        ...notification,
+        _reviewKind: 'notification',
+        stage_name: notification.proposed_stage_name,
+        stage_status: notification.review_status === 'ignored' ? 'ignored' : 'pending',
+        created_at: notification.received_at || notification.created_at,
+    };
+}
+
+function getReviewItems(status) {
+    const legacy = allStages
+        .filter(stage => stage.stage_status === status)
+        .map(stage => ({ ...stage, _reviewKind: 'legacy_stage' }));
+    const notifications = allStageNotifications
+        .filter(notification => notification.review_status === status)
+        .map(toReviewDisplayItem);
+    return [...legacy, ...notifications].sort((a, b) => {
+        const first = new Date(a.received_at || a.created_at || 0).getTime();
+        const second = new Date(b.received_at || b.created_at || 0).getTime();
+        return first - second;
+    });
+}
+
+function getReviewItem(itemId, reviewKind = 'legacy_stage') {
+    if (reviewKind === 'notification') {
+        const notification = allStageNotifications.find(item => item.id === itemId);
+        return notification ? toReviewDisplayItem(notification) : null;
+    }
+    const stage = allStages.find(item => item.id === itemId);
+    return stage ? { ...stage, _reviewKind: 'legacy_stage' } : null;
 }
 
 function renderReviews(stages) {
@@ -2187,7 +2282,7 @@ function renderReviews(stages) {
 
     if (batchBtn) {
         batchBtn.style.display = totalCount > 1 ? 'inline-flex' : 'none';
-        batchBtn.textContent = `一键全选准入 (${totalCount})`;
+        batchBtn.textContent = `一键安全处理 (${totalCount})`;
     }
 
     if (!container) return;
@@ -2219,6 +2314,10 @@ function renderReviews(stages) {
     }
 
     container.innerHTML = stages.map(stage => {
+        const reviewKind = stage._reviewKind || 'legacy_stage';
+        const eventMeta = reviewKind === 'notification'
+            ? (REVIEW_EVENT_META[stage.event_type] || REVIEW_EVENT_META.new_stage)
+            : null;
         const app = allApplications.find(a => a.id === stage.application_id) || {};
         const meta = getStageStatusMeta(stage, app);
         const safeCompany = escapeHTML(app.company || '未知企业');
@@ -2251,8 +2350,16 @@ function renderReviews(stages) {
             ? `<span class="review-deadline-bubble">📅 ${safeTime}</span>`
             : `<span class="review-deadline-bubble" style="background:#F1F5F9;border-color:#E2E8F0;color:#64748B;">⏳ ${safeNextExp}</span>`;
 
+        const relatedEmailCount = reviewKind === 'notification'
+            ? allStageNotifications.filter(item =>
+                item.application_id === stage.application_id
+                && item.proposed_stage_name === stage.proposed_stage_name
+            ).length
+            : 1;
+        const cardId = `review-card-${reviewKind}-${stage.id}`;
+
         return `
-            <div class="review-card" id="review-card-${stage.id}" onclick="openReviewDetailDrawer('${stage.id}')">
+            <div class="review-card" id="${cardId}" onclick="openReviewDetailDrawer('${stage.id}', '${reviewKind}')">
                 <div class="review-card-header">
                     <div class="review-card-company-group">
                         <div class="review-card-title-group">
@@ -2263,7 +2370,10 @@ function renderReviews(stages) {
                             <span class="review-card-job" title="${safePosition}">${safePosition}</span>
                         </div>
                     </div>
-                    <span class="badge-tag ${meta.badgeClass}">${meta.icon} ${safeType}</span>
+                    <div class="review-card-event-tags">
+                        ${eventMeta ? `<span class="review-event-tag ${eventMeta.className}">${eventMeta.icon} ${eventMeta.label}</span>` : ''}
+                        <span class="badge-tag ${meta.badgeClass}">${meta.icon} ${safeType}</span>
+                    </div>
                 </div>
 
                 <div class="review-card-ai-box">
@@ -2275,15 +2385,16 @@ function renderReviews(stages) {
 
                 <div class="review-card-meta-row">
                     ${timeHTML}
+                    ${relatedEmailCount > 1 ? `<span class="review-related-count">${relatedEmailCount} 封相关邮件</span>` : ''}
                     ${emailLinkHTML}
                     ${linkHTML}
                 </div>
 
                 <div class="review-card-actions">
-                    <button class="btn-card-approve" onclick="approveReviewCard('${stage.id}', event)" title="确认是我的求职邮件，通过并加入看板与桌面挂件">
-                        ✓ 准入并加入看板
+                    <button class="btn-card-approve" onclick="approveReviewItem('${stage.id}', '${reviewKind}', event)" title="确认邮件类型并安全更新求职流程">
+                        ✓ ${eventMeta ? eventMeta.approveLabel : '准入并加入看板'}
                     </button>
-                    <button class="btn-card-ignore" onclick="ignoreReviewCard('${stage.id}', event)" title="广告/非本人应聘，移至已忽略">
+                    <button class="btn-card-ignore" onclick="ignoreReviewItem('${stage.id}', '${reviewKind}', event)" title="广告、重复误判或非本人应聘，移至已忽略">
                         ✕ 忽略
                     </button>
                 </div>
@@ -2313,6 +2424,7 @@ function renderIgnoredReviews(stages) {
     }
 
     container.innerHTML = stages.map(stage => {
+        const reviewKind = stage._reviewKind || 'legacy_stage';
         const app = allApplications.find(a => a.id === stage.application_id) || {};
         const meta = getStageStatusMeta(stage, app);
         const safeCompany = escapeHTML(app.company || '未知企业');
@@ -2329,7 +2441,7 @@ function renderIgnoredReviews(stages) {
         }
 
         return `
-            <div class="review-card card-ignored" id="ignored-card-${stage.id}">
+            <div class="review-card card-ignored" id="ignored-card-${reviewKind}-${stage.id}">
                 <div class="review-card-header">
                     <div class="review-card-company-group">
                         <div class="review-card-title-group">
@@ -2354,12 +2466,10 @@ function renderIgnoredReviews(stages) {
                 </div>
 
                 <div class="review-card-actions">
-                    <button class="btn-card-restore" onclick="restoreIgnoredStage('${stage.id}', 'pending')" title="恢复并重新放回待审核大厅">
+                    <button class="btn-card-restore" onclick="restoreIgnoredReviewItem('${stage.id}', '${reviewKind}')" title="恢复并重新放回待审核大厅">
                         ↩ 恢复至待审
                     </button>
-                    <button class="btn-card-approve" style="flex:1;" onclick="restoreIgnoredStage('${stage.id}', 'scheduled')" title="纠错后直接通过并建档">
-                        ✓ 直接准入并建档
-                    </button>
+                    ${reviewKind === 'legacy_stage' ? `<button class="btn-card-approve" style="flex:1;" onclick="restoreIgnoredStage('${stage.id}', 'scheduled')" title="纠错后直接通过并建档">✓ 直接准入并建档</button>` : ''}
                 </div>
             </div>
         `;
@@ -2367,8 +2477,8 @@ function renderIgnoredReviews(stages) {
 }
 
 // 🧠 打开 AI 邮件智能解析详情抽屉
-function openReviewDetailDrawer(stageId) {
-    const stage = allStages.find(s => s.id === stageId);
+function openReviewDetailDrawer(stageId, reviewKind = 'legacy_stage') {
+    const stage = getReviewItem(stageId, reviewKind);
     if (!stage) return;
 
     const app = allApplications.find(a => a.id === stage.application_id) || {};
@@ -2391,7 +2501,10 @@ function openReviewDetailDrawer(stageId) {
 
     if (!overlay) return;
 
-    if (title) title.textContent = `${safeCompany} · ${safeType}`;
+    const eventMeta = reviewKind === 'notification'
+        ? (REVIEW_EVENT_META[stage.event_type] || REVIEW_EVENT_META.new_stage)
+        : null;
+    if (title) title.textContent = `${safeCompany} · ${safeType}${eventMeta ? ` · ${eventMeta.label}` : ''}`;
     if (badge) {
         badge.className = `badge-tag ${meta.badgeClass}`;
         badge.textContent = `${meta.icon} ${safeType}`;
@@ -2450,13 +2563,14 @@ function openReviewDetailDrawer(stageId) {
     if (btnApprove) {
         btnApprove.onclick = async () => {
             closeReviewDetailDrawer();
-            await approveReviewCard(stageId);
+            await approveReviewItem(stageId, reviewKind);
         };
+        btnApprove.textContent = eventMeta ? eventMeta.approveLabel : '准入并加入看板';
     }
     if (btnIgnore) {
         btnIgnore.onclick = async () => {
             closeReviewDetailDrawer();
-            await ignoreReviewCard(stageId);
+            await ignoreReviewItem(stageId, reviewKind);
         };
     }
 
@@ -2469,13 +2583,17 @@ function closeReviewDetailDrawer() {
 }
 
 // ⚡️ 单卡准入交互反馈
-async function approveReviewCard(stageId, event) {
+async function approveReviewItem(stageId, reviewKind = 'legacy_stage', event) {
     if (event) event.stopPropagation();
-    const stage = allStages.find(s => s.id === stageId);
+    const stage = getReviewItem(stageId, reviewKind);
+    if (reviewKind === 'notification') {
+        await approveStageNotification(stageId);
+        return;
+    }
     const app = stage ? allApplications.find(a => a.id === stage.application_id) : null;
     const compName = app ? app.company : (stage ? stage.raw_subject : '该企业');
 
-    const cardEl = document.getElementById(`review-card-${stageId}`);
+    const cardEl = document.getElementById(`review-card-${reviewKind}-${stageId}`);
     if (cardEl) {
         cardEl.classList.add('is-approved');
         cardEl.innerHTML = `
@@ -2492,20 +2610,21 @@ async function approveReviewCard(stageId, event) {
 }
 
 // 🗑️ 单卡忽略交互反馈
-async function ignoreReviewCard(stageId, event) {
+async function ignoreReviewItem(stageId, reviewKind = 'legacy_stage', event) {
     if (event) event.stopPropagation();
-    const stage = allStages.find(s => s.id === stageId);
+    const stage = getReviewItem(stageId, reviewKind);
     const app = stage ? allApplications.find(a => a.id === stage.application_id) : null;
     const compName = app ? app.company : '该邮件';
 
-    const cardEl = document.getElementById(`review-card-${stageId}`);
+    const cardEl = document.getElementById(`review-card-${reviewKind}-${stageId}`);
     if (cardEl) {
         cardEl.style.opacity = '0';
         cardEl.style.transform = 'scale(0.95)';
     }
 
     showAdminToast('已移入忽略归档箱', `「${compName}」已移入已忽略，随时可撤销恢复`);
-    await ignoreStage(stageId);
+    if (reviewKind === 'notification') await ignoreStageNotification(stageId);
+    else await ignoreStage(stageId);
 }
 
 // ⚡️ 全局浮动 Toast 通知
@@ -2533,24 +2652,222 @@ function showAdminToast(title, subtitle) {
     }, 3200);
 }
 
+function findNotificationTargetStage(notification) {
+    const stages = (appStagesMap[notification.application_id] || [])
+        .filter(stage => stage.stage_status !== 'ignored')
+        .sort((a, b) => (b.seq || 1) - (a.seq || 1));
+    if (notification.stage_id) {
+        const linked = stages.find(stage => stage.id === notification.stage_id);
+        if (linked) return linked;
+    }
+    const proposedName = String(notification.proposed_stage_name || '').trim();
+    return stages.find(stage => String(stage.stage_name || '').trim() === proposedName) || stages[0] || null;
+}
+
+function buildStageUpdateFromNotification(notification, targetStage) {
+    const eventType = notification.event_type || 'new_stage';
+    if (eventType === 'reminder') return {};
+
+    const payload = { updated_at: new Date().toISOString() };
+    if (eventType === 'reschedule') {
+        if (notification.schedule_time && notification.schedule_time !== '待定') {
+            payload.schedule_time = notification.schedule_time;
+            payload.schedule_type = notification.schedule_type || 'unknown';
+        }
+        if (notification.meeting_info) payload.meeting_info = notification.meeting_info;
+        if (notification.notes) payload.notes = notification.notes;
+        if (notification.next_expectation) payload.next_expectation = notification.next_expectation;
+    } else if (eventType === 'result') {
+        payload.stage_status = notification.proposed_stage_status || 'awaiting_result';
+        if (notification.next_expectation) payload.next_expectation = notification.next_expectation;
+        if (notification.notes) payload.notes = notification.notes;
+    } else if (eventType === 'cancel') {
+        payload.stage_status = 'cancelled';
+        payload.next_expectation = notification.next_expectation || '安排已取消';
+        if (notification.notes) payload.notes = notification.notes;
+    }
+    return payload;
+}
+
+async function approveStageNotification(notificationId, options = {}) {
+    const { reload = true, silent = false } = options;
+    if (!supabase) return false;
+    const notification = allStageNotifications.find(item => item.id === notificationId);
+    if (!notification) return false;
+
+    try {
+        let targetStage = findNotificationTargetStage(notification);
+        const eventType = notification.event_type || 'new_stage';
+
+        // 用户若先点了同组的提醒/改期，自动先落地最早的“新阶段”候选，
+        // 防止操作顺序不同导致同一阶段被创建两次。
+        if (eventType !== 'new_stage' && !targetStage) {
+            const sourceNotification = allStageNotifications
+                .filter(item =>
+                    item.id !== notification.id
+                    && item.application_id === notification.application_id
+                    && item.proposed_stage_name === notification.proposed_stage_name
+                    && item.event_type === 'new_stage'
+                    && item.review_status === 'pending'
+                )
+                .sort((a, b) => new Date(a.received_at || 0) - new Date(b.received_at || 0))[0];
+            if (sourceNotification) {
+                const sourceApproved = await approveStageNotification(sourceNotification.id, { reload: false, silent: true });
+                if (!sourceApproved) throw new Error('关联的首次阶段通知处理失败');
+                targetStage = findNotificationTargetStage(notification);
+            }
+        }
+
+        // 只有新阶段，或找不到可关联阶段的异常旧数据，才创建 application_stages。
+        if (eventType === 'new_stage' || !targetStage) {
+            const existingStages = appStagesMap[notification.application_id] || [];
+            const nextSeq = existingStages.length
+                ? Math.max(...existingStages.map(stage => stage.seq || 1)) + 1
+                : 1;
+            const stageId = (window.crypto && window.crypto.randomUUID)
+                ? window.crypto.randomUUID()
+                : ('stage_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8));
+            const stagePayload = {
+                id: stageId,
+                application_id: notification.application_id,
+                seq: nextSeq,
+                stage_name: notification.proposed_stage_name || '求职通知',
+                stage_status: notification.proposed_stage_status || (notification.schedule_time && notification.schedule_time !== '待定' ? 'scheduled' : 'awaiting_result'),
+                schedule_time: notification.schedule_time || '待定',
+                schedule_type: notification.schedule_type || 'unknown',
+                meeting_info: notification.meeting_info || '',
+                next_expectation: notification.next_expectation || '',
+                raw_email_id: notification.raw_email_id || '',
+                raw_subject: notification.raw_subject || '',
+                notes: notification.notes || '',
+                created_at: notification.received_at || new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+            const { error: insertError } = await supabase.from('application_stages').insert([stagePayload]);
+            if (insertError) throw insertError;
+            targetStage = stagePayload;
+            allStages.push(stagePayload);
+            if (!appStagesMap[notification.application_id]) appStagesMap[notification.application_id] = [];
+            appStagesMap[notification.application_id].push(stagePayload);
+        } else {
+            const updatePayload = buildStageUpdateFromNotification(notification, targetStage);
+            if (Object.keys(updatePayload).length > 0) {
+                const { error: updateError } = await supabase
+                    .from('application_stages')
+                    .update(updatePayload)
+                    .eq('id', targetStage.id);
+                if (updateError) throw updateError;
+                Object.assign(targetStage, updatePayload);
+            }
+        }
+
+        const now = new Date().toISOString();
+        const { error: notificationError } = await supabase
+            .from('stage_notifications')
+            .update({
+                stage_id: targetStage.id,
+                review_status: 'approved',
+                reviewed_at: now,
+                updated_at: now,
+            })
+            .eq('id', notification.id);
+        if (notificationError) throw notificationError;
+        Object.assign(notification, { stage_id: targetStage.id, review_status: 'approved', reviewed_at: now, updated_at: now });
+
+        const currentStages = (appStagesMap[notification.application_id] || []).filter(stage => stage.stage_status !== 'ignored');
+        const maxSeq = currentStages.length ? Math.max(...currentStages.map(stage => stage.seq || 1)) : (targetStage.seq || 1);
+        if ((targetStage.seq || 1) === maxSeq) {
+            const appUpdate = {
+                current_stage_name: targetStage.stage_name,
+                overall_status: targetStage.stage_status === 'offered'
+                    ? 'offered'
+                    : targetStage.stage_status === 'failed' ? 'failed' : 'active',
+                updated_at: now,
+            };
+            const { error: appError } = await supabase
+                .from('applications')
+                .update(appUpdate)
+                .eq('id', notification.application_id);
+            if (appError) throw appError;
+        }
+
+        if (!silent) {
+            const meta = REVIEW_EVENT_META[eventType] || REVIEW_EVENT_META.new_stage;
+            const detail = eventType === 'new_stage'
+                ? `已创建「${targetStage.stage_name}」并推进一个新轮次`
+                : `已安全关联至「${targetStage.stage_name}」，未重复增加轮次`;
+            showAdminToast(`${meta.label}邮件已处理`, detail);
+        }
+        if (reload) await loadAllData();
+        return true;
+    } catch (error) {
+        console.error('处理邮件事件失败:', error);
+        if (!silent) alert(`处理失败: ${error.message}`);
+        return false;
+    }
+}
+
+async function ignoreStageNotification(notificationId) {
+    if (!supabase) return;
+    try {
+        const now = new Date().toISOString();
+        const { error } = await supabase
+            .from('stage_notifications')
+            .update({ review_status: 'ignored', reviewed_at: now, updated_at: now })
+            .eq('id', notificationId);
+        if (error) throw error;
+        await loadAllData();
+    } catch (error) {
+        console.error('忽略邮件事件失败:', error);
+        alert(`忽略失败: ${error.message}`);
+    }
+}
+
+async function restoreIgnoredReviewItem(itemId, reviewKind = 'legacy_stage') {
+    if (reviewKind === 'legacy_stage') {
+        await restoreIgnoredStage(itemId, 'pending');
+        return;
+    }
+    if (!supabase) return;
+    try {
+        const { error } = await supabase
+            .from('stage_notifications')
+            .update({ review_status: 'pending', reviewed_at: null, updated_at: new Date().toISOString() })
+            .eq('id', itemId);
+        if (error) throw error;
+        showAdminToast('邮件已恢复', '已重新放回待审大厅');
+        await loadAllData();
+    } catch (error) {
+        console.error('恢复邮件事件失败:', error);
+        alert(`恢复失败: ${error.message}`);
+    }
+}
+
 // ⚡️ 批量一键放行准入全部待审邮件
 async function batchApproveAllStages() {
-    const pendingStages = allStages.filter(s => s.stage_status === 'pending');
-    if (pendingStages.length === 0) return;
-    if (!confirm(`确定要一键将当前 ${pendingStages.length} 封待审邮件全部放行准入并建档吗？`)) return;
+    const pendingItems = getReviewItems('pending');
+    if (pendingItems.length === 0) return;
+    if (!confirm(`确定要处理当前 ${pendingItems.length} 封待审邮件吗？提醒、改期和结果邮件会关联已有阶段，不会新增轮次。`)) return;
     if (!supabase) return;
 
     try {
-        const stageIds = pendingStages.map(s => s.id);
-        const { error } = await supabase
-            .from('application_stages')
-            .update({
-                stage_status: 'awaiting_result',
-                updated_at: new Date().toISOString()
-            })
-            .in('id', stageIds);
+        const notificationItems = pendingItems
+            .filter(item => item._reviewKind === 'notification')
+            .sort((a, b) => new Date(a.received_at || 0) - new Date(b.received_at || 0));
+        for (const notification of notificationItems) {
+            const success = await approveStageNotification(notification.id, { reload: false, silent: true });
+            if (!success) throw new Error(`邮件《${notification.raw_subject || notification.stage_name}》处理失败`);
+        }
 
-        if (error) throw error;
+        const pendingStages = pendingItems.filter(item => item._reviewKind === 'legacy_stage');
+        const stageIds = pendingStages.map(stage => stage.id);
+        if (stageIds.length > 0) {
+            const { error } = await supabase
+                .from('application_stages')
+                .update({ stage_status: 'awaiting_result', updated_at: new Date().toISOString() })
+                .in('id', stageIds);
+            if (error) throw error;
+        }
 
         // 同步将涉及的主表激活
         const appIds = [...new Set(pendingStages.map(s => s.application_id).filter(Boolean))];
@@ -2569,8 +2886,8 @@ async function batchApproveAllStages() {
             }
         }
 
-        showAdminToast('批量放行成功！', `已一键为全部 ${stageIds.length} 封邮件完成准入建档`);
-        console.log(`✅ 批量准入 ${stageIds.length} 个环节成功`);
+        showAdminToast('批量处理成功！', `已安全处理 ${pendingItems.length} 封邮件，提醒与改期未重复增加轮次`);
+        console.log(`✅ 批量处理 ${pendingItems.length} 封邮件成功`);
         await loadAllData();
     } catch (err) {
         console.error('批量准入失败:', err);

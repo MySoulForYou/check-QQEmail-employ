@@ -1,6 +1,6 @@
 import unittest
 
-from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name
+from cloud.normalization import normalize_company_website, normalize_email_event_type, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name, normalize_proposed_stage_status
 
 
 class WorkerNormalizationTests(unittest.TestCase):
@@ -30,6 +30,16 @@ class WorkerNormalizationTests(unittest.TestCase):
     def test_company_website_only_accepts_web_urls(self):
         self.assertEqual(normalize_company_website("www.example.com"), "https://www.example.com")
         self.assertEqual(normalize_company_website("腾讯会议 123-456-789"), "")
+
+    def test_email_event_type_accepts_chinese_aliases_and_safe_fallback(self):
+        self.assertEqual(normalize_email_event_type("提醒"), "reminder")
+        self.assertEqual(normalize_email_event_type("改期"), "reschedule")
+        self.assertEqual(normalize_email_event_type("unexpected"), "new_stage")
+
+    def test_proposed_stage_status_is_restricted(self):
+        self.assertEqual(normalize_proposed_stage_status("failed", "result"), "failed")
+        self.assertEqual(normalize_proposed_stage_status("unknown-value", "cancel"), "cancelled")
+        self.assertEqual(normalize_proposed_stage_status(None, "new_stage", "2026-09-11 14:50"), "scheduled")
 
 
 if __name__ == "__main__":

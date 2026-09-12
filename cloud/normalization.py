@@ -58,6 +58,44 @@ def normalize_extracted_schedule_type(value, stage_name="", schedule_time=""):
     return "unknown"
 
 
+def normalize_email_event_type(value):
+    """收敛邮件业务类型；未知值保守进入“新阶段”人工审核。"""
+    raw_type = (_normalize_text(value) or "").lower()
+    aliases = {
+        "new_stage": "new_stage",
+        "new": "new_stage",
+        "新阶段": "new_stage",
+        "邀请": "new_stage",
+        "reminder": "reminder",
+        "提醒": "reminder",
+        "催办": "reminder",
+        "reschedule": "reschedule",
+        "改期": "reschedule",
+        "时间变更": "reschedule",
+        "result": "result",
+        "结果": "result",
+        "通过": "result",
+        "未通过": "result",
+        "cancel": "cancel",
+        "cancelled": "cancel",
+        "取消": "cancel",
+    }
+    return aliases.get(raw_type, "new_stage")
+
+
+def normalize_proposed_stage_status(value, event_type="new_stage", schedule_time="待定"):
+    """规范化邮件建议写入的阶段状态，避免 AI 返回任意值。"""
+    raw_status = (_normalize_text(value) or "").lower()
+    allowed = {"scheduled", "awaiting_result", "passed", "failed", "offered", "cancelled"}
+    if raw_status in allowed:
+        return raw_status
+    if event_type == "cancel":
+        return "cancelled"
+    if event_type == "result":
+        return "awaiting_result"
+    return "scheduled" if _normalize_text(schedule_time) not in {"", "待定", "未知", "无"} else "awaiting_result"
+
+
 def normalize_company_website(value):
     """仅允许保存 HTTP(S) 公司官网，过滤会议号、密码等非网址内容。"""
     website = _normalize_text(value)
