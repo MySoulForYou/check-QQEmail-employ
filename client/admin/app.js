@@ -105,6 +105,8 @@ let currentReviewCategory = 'all';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedCalendarKey = formatCalendarKey(new Date());
 let urgentBannerExpanded = false;
+let pipelinePopoverSequence = 0;
+let pipelinePopoverCloseTimer = null;
 
 // ==========================================================================
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
@@ -462,12 +464,7 @@ function generatePipelineHTML(stages) {
     const renderStep = (s) => {
         const isLatest = (s.seq || 1) === maxSeq;
         const meta = getStageStatusMeta(s);
-        let stageLabel = s.stage_name || '环节';
-
-        // 简短标签
-        if (stageLabel.length > 5) {
-            stageLabel = stageLabel.substring(0, 4) + '..';
-        }
+        const stageLabel = s.stage_name || '环节';
 
         let stepClass = 'done';
         let stepIcon = '✓';
@@ -499,18 +496,190 @@ function generatePipelineHTML(stages) {
         `;
     };
 
-    const stepsHTML = groups.map(group => {
+    const renderGroup = (group) => {
         const content = group.stages.map(renderStep).join('');
         return group.stages.length > 1
             ? `<div class="pipeline-parallel-group" title="并列环节，状态独立">${content}</div>`
             : content;
-    });
+    };
+
+    // 超过两轮时收拢此前流程，避免状态胶囊换行破坏卡片节奏。
+    // 当前轮始终直显，完整历史通过悬浮或点击浮层查看。
+    const shouldCollapseHistory = groups.length > 2;
+    if (shouldCollapseHistory) {
+        const historyGroups = groups.slice(0, -1);
+        const currentGroup = groups[groups.length - 1];
+        const hiddenStageCount = historyGroups.reduce((count, group) => count + group.stages.length, 0);
+        const popoverId = `pipeline-history-popover-${++pipelinePopoverSequence}`;
+        const historyItems = historyGroups.map(group => {
+            const stageDetails = group.stages.map(stage => {
+                const meta = getStageStatusMeta(stage);
+                return `
+                    <div class="pipeline-history-stage">
+                        <span class="pipeline-history-name">${escapeHTML(stage.stage_name || '环节')}</span>
+                        <span class="pipeline-history-status">${escapeHTML(meta.timelineStatusText)}</span>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <li class="pipeline-history-item">
+                    <span class="pipeline-history-check" aria-hidden="true">✓</span>
+                    <div class="pipeline-history-content">
+                        <span class="pipeline-history-round">第 ${group.seq} 轮</span>
+                        ${stageDetails}
+                    </div>
+                </li>
+            `;
+        }).join('');
+
+        return `
+            <div class="pipeline-flow pipeline-flow-collapsed">
+                <span class="pipeline-history-wrap">
+                    <button
+                        type="button"
+                        class="pipeline-history-trigger"
+                        aria-expanded="false"
+                        aria-haspopup="dialog"
+                        aria-controls="${popoverId}"
+                        onmouseenter="previewPipelinePopover(event, this)"
+                        onmouseleave="schedulePipelinePopoverClose()"
+                        onclick="togglePipelinePopover(event, this)"
+                    >
+                        <span class="step-dot" aria-hidden="true">✓</span>
+                        <span>已完成 ${hiddenStageCount} 项</span>
+                        <span class="pipeline-history-chevron" aria-hidden="true">⌄</span>
+                    </button>
+                    <div
+                        id="${popoverId}"
+                        class="pipeline-history-popover"
+                        popover="manual"
+                        role="dialog"
+                        aria-label="此前已完成的求职阶段"
+                        onmouseenter="cancelPipelinePopoverClose()"
+                        onmouseleave="schedulePipelinePopoverClose(this)"
+                        onclick="event.stopPropagation()"
+                    >
+                        <div class="pipeline-history-head">
+                            <strong>此前进展</strong>
+                            <span>${historyGroups.length} 轮 · ${hiddenStageCount} 项</span>
+                        </div>
+                        <ol class="pipeline-history-list">${historyItems}</ol>
+                    </div>
+                </span>
+                <span class="pipeline-arrow" aria-hidden="true">➔</span>
+                ${renderGroup(currentGroup)}
+            </div>
+        `;
+    }
+
+    const stepsHTML = groups.map(renderGroup);
 
     return `
         <div class="pipeline-flow">
             ${stepsHTML.join('<span class="pipeline-arrow">➔</span>')}
         </div>
     `;
+}
+
+function getPipelinePopover(trigger) {
+    if (!trigger) return null;
+    return document.getElementById(trigger.getAttribute('aria-controls'));
+}
+
+function cancelPipelinePopoverClose() {
+    if (pipelinePopoverCloseTimer) {
+        clearTimeout(pipelinePopoverCloseTimer);
+        pipelinePopoverCloseTimer = null;
+    }
+}
+
+function positionPipelinePopover(popover, trigger) {
+    if (!popover || !trigger) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const gap = 10;
+    const viewportPadding = 12;
+    const popoverWidth = popover.offsetWidth;
+    const popoverHeight = popover.offsetHeight;
+    const left = Math.min(
+        Math.max(viewportPadding, triggerRect.left),
+        Math.max(viewportPadding, window.innerWidth - popoverWidth - viewportPadding)
+    );
+    const hasRoomBelow = triggerRect.bottom + gap + popoverHeight <= window.innerHeight - viewportPadding;
+    const top = hasRoomBelow
+        ? triggerRect.bottom + gap
+        : Math.max(viewportPadding, triggerRect.top - popoverHeight - gap);
+
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+}
+
+function closePipelinePopovers(exceptPopover = null) {
+    document.querySelectorAll('.pipeline-history-popover').forEach(popover => {
+        if (popover === exceptPopover) return;
+        popover.dataset.pinned = 'false';
+        if (typeof popover.hidePopover === 'function' && popover.matches(':popover-open')) {
+            popover.hidePopover();
+        } else {
+            popover.classList.remove('is-visible');
+        }
+        const trigger = document.querySelector(`[aria-controls="${popover.id}"]`);
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function isPipelinePopoverOpen(popover) {
+    if (!popover) return false;
+    if (typeof popover.showPopover === 'function') return popover.matches(':popover-open');
+    return popover.classList.contains('is-visible');
+}
+
+function showPipelinePopover(trigger, pinned = false) {
+    const popover = getPipelinePopover(trigger);
+    if (!popover) return;
+    cancelPipelinePopoverClose();
+    closePipelinePopovers(popover);
+    popover.dataset.pinned = pinned ? 'true' : popover.dataset.pinned || 'false';
+
+    if (typeof popover.showPopover === 'function') {
+        if (!popover.matches(':popover-open')) popover.showPopover();
+    } else {
+        popover.classList.add('is-visible');
+    }
+    trigger.setAttribute('aria-expanded', 'true');
+    positionPipelinePopover(popover, trigger);
+}
+
+function previewPipelinePopover(event, trigger) {
+    if (event) event.stopPropagation();
+    showPipelinePopover(trigger, false);
+}
+
+function togglePipelinePopover(event, trigger) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const popover = getPipelinePopover(trigger);
+    if (!popover) return;
+    const isOpen = isPipelinePopoverOpen(popover);
+    const isPinned = popover.dataset.pinned === 'true';
+    if (isOpen && isPinned) {
+        closePipelinePopovers();
+        return;
+    }
+    showPipelinePopover(trigger, true);
+}
+
+function schedulePipelinePopoverClose(popoverElement = null) {
+    cancelPipelinePopoverClose();
+    pipelinePopoverCloseTimer = setTimeout(() => {
+        const popover = popoverElement && popoverElement.classList?.contains('pipeline-history-popover')
+            ? popoverElement
+            : Array.from(document.querySelectorAll('.pipeline-history-popover')).find(isPipelinePopoverOpen);
+        if (!popover || popover.dataset.pinned === 'true' || popover.matches(':hover')) return;
+        closePipelinePopovers();
+    }, 180);
 }
 
 // ==========================================================================
@@ -686,6 +855,7 @@ function setupEventListeners() {
     // 8. 快捷键 Esc
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+            closePipelinePopovers();
             closeTimelineDrawer();
             closeReviewDetailDrawer();
             closeConfigModal();
@@ -694,6 +864,14 @@ function setupEventListeners() {
             closeManualJobOpportunityModal();
         }
     });
+
+    // 流程历史浮层固定展开后，点击空白处关闭；窗口变化时关闭以避免定位漂移。
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.pipeline-history-trigger, .pipeline-history-popover')) {
+            closePipelinePopovers();
+        }
+    });
+    window.addEventListener('resize', () => closePipelinePopovers());
 
     // 9. 设置弹窗事件
     const settingsNav = document.getElementById('admin-settings-nav');
