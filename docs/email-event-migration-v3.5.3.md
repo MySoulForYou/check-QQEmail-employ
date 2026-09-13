@@ -13,6 +13,7 @@
 ## 可由 Codex继续完成
 
 - 根据 `supabase/audit_duplicate_stages.sql` 的只读结果生成历史数据清理方案。
+- 对已确认的候选记录执行 `supabase/inspect_duplicate_stage_details.sql`，核对状态、时间与邮件关联。
 - 为每一组疑似重复阶段标出保留项、合并项和原因。
 - 经用户确认后生成一次性修复 SQL，并在执行前再次提供影响行数预览。
 
