@@ -44,7 +44,6 @@ const state = {
 
 // ==================== 1. 初始化入口 ====================
 document.addEventListener('DOMContentLoaded', () => {
-  initTheme();
   initNavigation();
   initSearchAndFilters();
   initSettings();
@@ -71,34 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData(false);
   });
 });
-
-// ==================== 1.1 主题皮肤引擎 ====================
-function initTheme() {
-  const savedTheme = localStorage.getItem('offerpilot_theme') || 'creamy-luminous';
-  applyTheme(savedTheme, false);
-}
-
-window.switchAppTheme = function(themeName) {
-  applyTheme(themeName, true);
-};
-
-function applyTheme(themeName, showNotification = true) {
-  document.body.setAttribute('data-theme', themeName);
-  localStorage.setItem('offerpilot_theme', themeName);
-
-  const cardCreamy = document.getElementById('theme-card-creamy');
-  const cardClassic = document.getElementById('theme-card-classic');
-
-  if (cardCreamy && cardClassic) {
-    cardCreamy.classList.toggle('active', themeName === 'creamy-luminous');
-    cardClassic.classList.toggle('active', themeName === 'classic-milktea');
-  }
-
-  if (showNotification) {
-    triggerHaptic('medium');
-    showToast(themeName === 'creamy-luminous' ? '✨ 已切换为 奶油琥珀流光 主题' : '🍃 已切换为 经典温润白瓷 主题');
-  }
-}
 
 // ==================== 2. 底部导航栏 Tab 切换 ====================
 function initNavigation() {
@@ -463,6 +434,11 @@ function renderDailyHome() {
   const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   if (dateLabel) dateLabel.textContent = `${now.getMonth() + 1}月${now.getDate()}日 · ${weekDays[now.getDay()]}`;
 
+  const profileApplicationCount = document.getElementById('profile-application-count');
+  const profileStageCount = document.getElementById('profile-stage-count');
+  if (profileApplicationCount) profileApplicationCount.textContent = state.applications.length;
+  if (profileStageCount) profileStageCount.textContent = state.stages.filter(stage => !['pending', 'ignored'].includes(stage.stage_status)).length;
+
   const entries = getCalendarEntries();
   const scheduledEntries = entries.filter(item => item.stage?.stage_status === 'scheduled');
   const todayItems = scheduledEntries.filter(item => item.key === todayKey);
@@ -511,7 +487,6 @@ function renderDailyHome() {
     const days = stageDate ? Math.max(1, Math.floor((now - stageDate) / 86400000)) : null;
     return `
       <button type="button" class="daily-waiting-card" onclick="window.viewCompanyTimeline('${app.id}')">
-        <span class="daily-company-avatar">${escapeHtml((app.company || '企').slice(0, 1))}</span>
         <span class="daily-waiting-copy"><strong>${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong><small>${escapeHtml(stage.stage_name || '当前环节')}结束${days ? ` ${days} 天` : '，等待反馈'}</small></span>
         <span class="daily-reminder-pill">查看进展</span>
       </button>`;
@@ -686,19 +661,6 @@ function renderDashboard() {
     const isAwaiting = latest && latest.stage_status === 'awaiting_result';
     const isOffered = item.overall_status === 'offered' || (latest && latest.stage_status === 'offered');
 
-    // Logo Avatar 样式
-    let avatarClass = '';
-    let avatarLetter = item.company.slice(0, 1);
-    if (item.company.includes('阿里') || item.company.toLowerCase().includes('alibaba')) {
-      avatarLetter = '阿';
-    } else if (item.company.includes('腾讯') || item.company.toLowerCase().includes('tencent')) {
-      avatarClass = 'avatar-tencent';
-      avatarLetter = '腾';
-    } else if (item.company.includes('字节') || item.company.toLowerCase().includes('bytedance')) {
-      avatarClass = 'avatar-bytedance';
-      avatarLetter = '字';
-    }
-
     // 智能精简时间胶囊文本
     const shortTime = formatShortScheduleTime(scheduleTime);
 
@@ -735,7 +697,6 @@ function renderDashboard() {
       <div class="porcelain-job-card${item.is_focused ? ' is-focused' : ''}" onclick="window.viewCompanyTimeline('${item.id}')">
         <div class="card-top-info">
           <div class="company-brand-group">
-            <div class="company-logo-avatar ${avatarClass}">${avatarLetter}</div>
             <div class="company-titles">
               <div class="company-name-bold" title="${escapeHtml(item.company)}">${escapeHtml(item.company)}</div>
               <div class="company-pos-sub" title="${escapeHtml(item.position || '校招岗位')}">${escapeHtml(item.position || '校招岗位')}</div>
@@ -1131,7 +1092,6 @@ function renderTimelineView(appId) {
       `;
     }
     document.getElementById('timeline-company-name').textContent = '未选择企业';
-    document.getElementById('timeline-header-avatar').textContent = '企';
     document.getElementById('timeline-position-name').textContent = '投递岗位: 待定';
     document.getElementById('timeline-stage-count').textContent = '共 0 轮通知';
     document.getElementById('timeline-status-badge').textContent = '无数据';
@@ -1148,16 +1108,7 @@ function renderTimelineView(appId) {
   const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
   const latestStages = appStages.filter(stage => (stage.seq || 1) === latestSeq);
 
-  // 企业专属 Logo 图标
-  let companyIcon = '🏢';
-  if (targetApp.company.includes('腾讯') || targetApp.company.toLowerCase().includes('tencent')) companyIcon = '🐧';
-  else if (targetApp.company.includes('阿里') || targetApp.company.toLowerCase().includes('alibaba')) companyIcon = '🐱';
-  else if (targetApp.company.includes('字节') || targetApp.company.toLowerCase().includes('bytedance')) companyIcon = '⚡️';
-  else if (targetApp.company.includes('美团')) companyIcon = '🦘';
-  else if (targetApp.company.includes('银行') || targetApp.company.includes('证券') || targetApp.company.includes('期货')) companyIcon = '🏦';
-
   document.getElementById('timeline-company-name').textContent = targetApp.company;
-  document.getElementById('timeline-header-avatar').textContent = companyIcon;
   document.getElementById('timeline-position-name').textContent = targetApp.position || '校招工程师';
 
   const statusBadge = document.getElementById('timeline-status-badge');

@@ -281,7 +281,6 @@
           <!-- 企业全景 Hero 仪式感展示区 -->
           <div class="timeline-hero-display" id="timeline-hero-box">
             <div class="hero-company-badge" id="timeline-header-badge">
-              <span class="badge-avatar" id="timeline-header-avatar">企</span>
               <span class="badge-name" id="timeline-company-name">请选择企业</span>
             </div>
             <h1 class="hero-position-title" id="timeline-position-name">后端开发工程师</h1>
@@ -311,11 +310,27 @@
 
       <!-- ================= 视图 D: 个人设置与云端中枢 (Settings) ================= -->
       <section id="view-settings" class="tab-view">
-        <header class="app-topbar">
-          <h1 class="page-large-title">⚙️ 个人设置与云端中枢</h1>
+        <header class="app-topbar profile-topbar">
+          <span class="profile-eyebrow">OfferPilot</span>
+          <h1 class="page-large-title">我的</h1>
+          <p class="profile-subtitle">管理求职数据、提醒与云端连接</p>
         </header>
 
         <div class="settings-content-body">
+          <div class="profile-overview-card">
+            <div class="profile-overview-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h3"/></svg>
+            </div>
+            <div class="profile-overview-copy">
+              <strong>我的求职档案</strong>
+              <span>所有进展均与 Supabase 实时同步</span>
+            </div>
+            <div class="profile-overview-stats">
+              <span><b id="profile-application-count">0</b><small>申请</small></span>
+              <span><b id="profile-stage-count">0</b><small>环节</small></span>
+            </div>
+          </div>
+
           <div class="settings-card settings-shortcuts-card">
             <div class="card-section-header">
               <span class="section-icon">⌘</span>
@@ -327,36 +342,6 @@
             <div class="settings-shortcuts-grid">
               <button type="button" onclick="window.switchToTab('view-review')"><span>邮件审核</span><small id="settings-review-count">查看 AI 待审结果</small></button>
               <button type="button" onclick="window.switchToTab('view-events')"><span>招聘会</span><small>管理宣讲与线下活动</small></button>
-            </div>
-          </div>
-          <!-- 视觉主题与风格切换卡片 -->
-          <div class="settings-card">
-            <div class="card-section-header">
-              <span class="section-icon">🎨</span>
-              <div class="section-title-group">
-                <h3>视觉主题与风格切换</h3>
-                <p>Apple 极简白瓷与奶油琥珀发光流体视觉</p>
-              </div>
-            </div>
-
-            <div class="theme-selector-grid">
-              <div class="theme-option-card active" id="theme-card-creamy" onclick="window.switchAppTheme('creamy-luminous')">
-                <div class="theme-preview-dot theme-dot-creamy"></div>
-                <div class="theme-info-box">
-                  <div class="theme-name-text">✨ 奶油琥珀流光 (Creamy Luminous)</div>
-                  <div class="theme-desc-text">发光流光轨道、气泡对话卡片与琥珀漫反射光晕</div>
-                </div>
-                <span class="theme-check-icon">✓</span>
-              </div>
-
-              <div class="theme-option-card" id="theme-card-classic" onclick="window.switchAppTheme('classic-milktea')">
-                <div class="theme-preview-dot theme-dot-classic"></div>
-                <div class="theme-info-box">
-                  <div class="theme-name-text">🍃 经典温润白瓷 (Warm Milk-Tea)</div>
-                  <div class="theme-desc-text">极简纯白卡片、温润奶茶米白底色与深色柔影</div>
-                </div>
-                <span class="theme-check-icon">✓</span>
-              </div>
             </div>
           </div>
           <!-- 数据库连接卡片 -->

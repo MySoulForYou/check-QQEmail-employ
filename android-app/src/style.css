@@ -5,21 +5,21 @@
 
 :root {
   /* 基础温润奶茶色彩体系 */
-  --bg-app: #FAF8F5;
+  --bg-app: #FCFAF8;
   --bg-card: #FFFFFF;
-  --bg-card-secondary: #F5F2EC;
+  --bg-card-secondary: #F7F3EF;
   --bg-drawer: #FFFFFF;
   
   /* 文本色彩 */
-  --text-main: #2D241E;
-  --text-sub: #7A6F66;
-  --text-muted: #A89F95;
+  --text-main: #281C17;
+  --text-sub: #8A7770;
+  --text-muted: #B4A49D;
   
   /* 瓷感边框与高光阴影 */
-  --border-porcelain: rgba(226, 218, 208, 0.7);
-  --border-subtle: rgba(235, 230, 224, 0.5);
-  --shadow-porcelain: 0 8px 24px -4px rgba(140, 118, 95, 0.08), 0 2px 6px -1px rgba(140, 118, 95, 0.04);
-  --shadow-float: 0 12px 32px -4px rgba(140, 118, 95, 0.14), 0 4px 12px -2px rgba(140, 118, 95, 0.06);
+  --border-porcelain: rgba(231, 219, 211, 0.78);
+  --border-subtle: rgba(239, 230, 224, 0.62);
+  --shadow-porcelain: 0 10px 28px -7px rgba(104, 70, 53, 0.09), 0 2px 8px -2px rgba(104, 70, 53, 0.04);
+  --shadow-float: 0 14px 34px -6px rgba(104, 70, 53, 0.16), 0 4px 12px -2px rgba(104, 70, 53, 0.07);
   --shadow-drawer: 0 -10px 40px rgba(70, 50, 30, 0.12);
   
   /* 状态点缀高亮色 */
@@ -32,6 +32,8 @@
   --accent-rose: #EF4444;
   --accent-rose-bg: #FEF2F2;
   --accent-dark: #2B2622;
+  --accent-coral: #F07B5B;
+  --accent-coral-soft: #FFF0E8;
   
   /* 尺寸与圆角 */
   --radius-sm: 10px;
@@ -1391,75 +1393,6 @@ body {
   color: #FFFFFF;
 }
 
-/* ==================== 8. 视觉主题切换器样式 ==================== */
-.theme-selector-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.theme-option-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--bg-card-secondary);
-  border: 1.5px solid transparent;
-  border-radius: var(--radius-lg);
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.theme-option-card.active {
-  background: #FFFFFF;
-  border-color: var(--accent-amber);
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.12);
-}
-
-.theme-preview-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.theme-dot-creamy {
-  background: linear-gradient(135deg, #FDE68A 0%, #F59E0B 100%);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
-}
-
-.theme-dot-classic {
-  background: #38312B;
-  box-shadow: 0 2px 6px rgba(56, 49, 43, 0.25);
-}
-
-.theme-info-box {
-  flex: 1;
-}
-
-.theme-name-text {
-  font-size: 0.88rem;
-  font-weight: 800;
-  color: var(--text-main);
-  margin-bottom: 2px;
-}
-
-.theme-desc-text {
-  font-size: 0.72rem;
-  color: var(--text-sub);
-}
-
-.theme-check-icon {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: var(--accent-amber);
-  opacity: 0;
-}
-
-.theme-option-card.active .theme-check-icon {
-  opacity: 1;
-}
-
 /* 时间线底部操作条 */
 .timeline-bottom-actions {
   position: fixed;
@@ -1697,18 +1630,56 @@ body {
 }
 
 /* ==================== 9. 设置中心样式 (Settings) ==================== */
+.profile-topbar { padding: calc(22px + var(--safe-top)) 20px 14px; }
+.profile-eyebrow { font-size: .76rem; font-weight: 800; color: var(--text-sub); letter-spacing: .4px; }
+.profile-topbar .page-large-title { margin: 5px 0 2px; font-size: 2rem; letter-spacing: -1px; }
+.profile-subtitle { font-size: .78rem; color: var(--text-sub); }
+
 .settings-content-body {
-  padding: 0 18px 30px;
+  padding: 0 20px 30px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
+.profile-overview-card {
+  padding: 16px;
+  border: 1px solid rgba(237, 188, 169, .55);
+  border-radius: 24px;
+  background: linear-gradient(135deg, #FFF6F0 0%, #FFFDFC 72%);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 26px rgba(160, 90, 62, .07);
+}
+
+.profile-overview-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--accent-coral-soft);
+  color: #B9573E;
+}
+
+.profile-overview-icon svg { width: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.profile-overview-copy { min-width: 0; }
+.profile-overview-copy strong, .profile-overview-copy span { display: block; }
+.profile-overview-copy strong { font-size: .92rem; font-weight: 850; }
+.profile-overview-copy span { margin-top: 4px; font-size: .66rem; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-overview-stats { display: flex; gap: 12px; }
+.profile-overview-stats span { min-width: 30px; text-align: center; }
+.profile-overview-stats b, .profile-overview-stats small { display: block; }
+.profile-overview-stats b { font-size: 1.05rem; color: var(--text-main); }
+.profile-overview-stats small { margin-top: 2px; font-size: .6rem; color: var(--text-sub); }
+
 .settings-card {
   background: var(--bg-card);
   border: 1px solid var(--border-porcelain);
   border-radius: var(--radius-xl);
-  padding: 18px 16px;
+  padding: 17px 16px;
   box-shadow: var(--shadow-porcelain);
 }
 
@@ -2113,7 +2084,8 @@ input:checked + .slider-toggle:before {
   min-height: calc(100vh - 60px - var(--safe-bottom));
   padding-bottom: 42px;
   background:
-    radial-gradient(circle at 90% 3%, rgba(221, 205, 187, .22), transparent 24%),
+    radial-gradient(circle at 86% 5%, rgba(244, 198, 181, .18), transparent 25%),
+    radial-gradient(circle at 4% 42%, rgba(248, 226, 214, .2), transparent 24%),
     var(--bg-app);
 }
 
@@ -2288,11 +2260,29 @@ input:checked + .slider-toggle:before {
   padding: 17px;
   border: 1px solid var(--border-porcelain);
   border-radius: 23px;
-  background: rgba(255,255,255,.91);
+  background: rgba(255,255,255,.96);
   box-shadow: 0 10px 26px rgba(91, 72, 52, .07);
   color: var(--text-main);
   text-align: left;
 }
+
+.daily-timeline-item.is-primary .daily-action-card {
+  border-color: rgba(238, 119, 87, .42);
+  background:
+    radial-gradient(circle at 86% 18%, rgba(255,255,255,.16), transparent 25%),
+    linear-gradient(135deg, #F39A69 0%, #EE785B 58%, #E96763 100%);
+  color: #fff;
+  box-shadow: 0 15px 30px rgba(220, 104, 77, .2);
+}
+
+.daily-timeline-item.is-primary .daily-card-head em {
+  background: rgba(255, 244, 236, .78);
+  color: #5E2D21;
+}
+
+.daily-timeline-item.is-primary .daily-action-card > small { color: rgba(255,255,255,.82); }
+.daily-timeline-item.is-primary button.daily-primary-action { background: #33221C; }
+.daily-timeline-item.is-primary .daily-done-action { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.18); color: #fff; }
 
 button.daily-action-card { appearance: none; font: inherit; }
 
@@ -2373,7 +2363,7 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
   border-radius: 21px;
   background: rgba(255,255,255,.76);
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 11px;
   color: var(--text-main);
@@ -2382,18 +2372,6 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
 }
 
 .daily-waiting-card + .daily-waiting-card { margin-top: 9px; }
-
-.daily-company-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  background: #EEF2EC;
-  color: #356A55;
-  font-size: 1rem;
-  font-weight: 850;
-}
 
 .daily-waiting-copy { min-width: 0; }
 .daily-waiting-copy strong, .daily-waiting-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2443,11 +2421,11 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
   height: 56px;
   border: 0;
   border-radius: 50%;
-  background: #21604D;
+  background: #35231D;
   color: #fff;
   font-size: 1.9rem;
   font-weight: 300;
-  box-shadow: 0 12px 26px rgba(33, 96, 77, .27);
+  box-shadow: 0 12px 26px rgba(53, 35, 29, .24);
 }
 
 .daily-empty-card,
@@ -2549,7 +2527,7 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
   .daily-action-card { padding: 15px; }
   .daily-card-head strong { font-size: .9rem; }
   .daily-reminder-pill { display: none; }
-  .daily-waiting-card { grid-template-columns: 40px minmax(0, 1fr); }
+  .daily-waiting-card { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2904,11 +2882,6 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
 .cal-day-cell.is-selected {
   background: rgba(45, 40, 36, 0.08);
   border-color: rgba(45, 40, 36, 0.18);
-}
-
-body[data-theme="creamy-luminous"] .cal-day-cell.is-selected {
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.35);
 }
 
 .cal-dots-wrap {

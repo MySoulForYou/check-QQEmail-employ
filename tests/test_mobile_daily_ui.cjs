@@ -30,3 +30,11 @@ test('secondary tools remain reachable without crowding the primary navigation',
   assert.match(html, /onclick="window\.switchToTab\('view-events'\)"/);
   assert.match(html, /id="view-applications"/);
 });
+
+test('mobile cards omit company avatars and profile uses one fixed visual system', () => {
+  assert.doesNotMatch(app, /company-logo-avatar|daily-company-avatar|timeline-header-avatar/);
+  assert.doesNotMatch(html, /company-logo-avatar|daily-company-avatar|timeline-header-avatar/);
+  assert.doesNotMatch(html, /视觉主题与风格切换|theme-card-creamy|theme-card-classic/);
+  assert.doesNotMatch(app, /switchAppTheme|offerpilot_theme|initTheme/);
+  assert.match(html, /class="profile-overview-card"/);
+});
