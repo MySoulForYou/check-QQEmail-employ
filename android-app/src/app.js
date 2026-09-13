@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAllData();
   } else {
     // 手机端首次打开未配置时，在大厅展示安全连接引导
+    renderDailyHome();
     renderDashboard();
     renderUrgentBanner();
     renderCalendar();
@@ -123,7 +124,7 @@ function initNavigation() {
 function switchToTab(tabId) {
   // 1. 如果当前正在从控制台切走，精确记录当前的垂直滚动位置
   const activeView = document.querySelector('.tab-view.active');
-  if (activeView && activeView.id === 'view-dashboard') {
+  if (activeView && activeView.id === 'view-applications') {
     state.dashboardScrollY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
   }
 
@@ -139,7 +140,11 @@ function switchToTab(tabId) {
 
   // 3. 智能滚动位置恢复机制
   if (tabId === 'view-dashboard') {
-    // 切回控制台：无感恢复到上次浏览的精确坐标并刷新紧急通报栏
+    renderDailyHome();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (tabId === 'view-applications') {
+    // 切回申请列表：无感恢复到上次浏览的精确坐标并刷新紧急通报栏
+    renderDashboard();
     renderUrgentBanner();
     requestAnimationFrame(() => {
       window.scrollTo({
@@ -164,7 +169,7 @@ window.switchToTab = switchToTab;
 
 // 全景时间 ➔ 返回控制台
 window.backToDashboard = function() {
-  switchToTab('view-dashboard');
+  switchToTab('view-applications');
   triggerHaptic('light');
 };
 
@@ -291,6 +296,7 @@ async function loadAllData(showLoading = true) {
     state.recruitmentEventsError = recruitmentEventsError || '';
 
     updateKPIStats();
+    renderDailyHome();
     renderDashboard();
     renderUrgentBanner();
     renderCalendar();
@@ -437,7 +443,124 @@ function updateReviewBadge() {
       navBadge.style.display = 'none';
     }
   }
+
+  const shortcutCount = document.getElementById('settings-review-count');
+  if (shortcutCount) shortcutCount.textContent = pendingStages.length > 0 ? `${pendingStages.length} 封邮件待确认` : '暂无待确认邮件';
 }
+
+// ==================== 4.1 小屏优先每日行动首页 ====================
+function renderDailyHome() {
+  const dateLabel = document.getElementById('daily-current-date');
+  const summary = document.getElementById('daily-summary-text');
+  const weekStrip = document.getElementById('daily-week-strip');
+  const timeline = document.getElementById('daily-timeline-list');
+  const waitingList = document.getElementById('daily-waiting-list');
+  const inbox = document.getElementById('daily-inbox-banner');
+  if (!timeline || !waitingList || !weekStrip) return;
+
+  const now = new Date();
+  const todayKey = formatCalendarKey(now);
+  const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  if (dateLabel) dateLabel.textContent = `${now.getMonth() + 1}月${now.getDate()}日 · ${weekDays[now.getDay()]}`;
+
+  const entries = getCalendarEntries();
+  const scheduledEntries = entries.filter(item => item.stage?.stage_status === 'scheduled');
+  const todayItems = scheduledEntries.filter(item => item.key === todayKey);
+  const pendingCount = state.stages.filter(stage => stage.stage_status === 'pending').length;
+  if (summary) summary.textContent = `${todayItems.length} 项安排 · ${pendingCount} 项待处理`;
+
+  weekStrip.innerHTML = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2 + index);
+    const key = formatCalendarKey(date);
+    const hasItems = entries.some(item => item.key === key);
+    return `
+      <button type="button" class="daily-week-day ${key === todayKey ? 'is-today' : ''}" onclick="window.openDailyDate('${key}')" aria-label="查看${date.getMonth() + 1}月${date.getDate()}日日程">
+        <span>${weekDays[date.getDay()]}</span>
+        <strong>${date.getDate()}</strong>
+        <i class="${hasItems ? 'has-items' : ''}"></i>
+      </button>`;
+  }).join('');
+
+  if (!supabaseService.getConfig().isConfigured) {
+    timeline.innerHTML = `
+      <button type="button" class="daily-connect-card" onclick="window.switchToTab('view-settings')">
+        <span class="daily-connect-mark">⌁</span>
+        <span><strong>连接云端后开始使用</strong><small>安全同步你的申请、日程与邮件进展</small></span>
+        <b>去设置</b>
+      </button>`;
+  } else {
+    const nextUpcoming = scheduledEntries.find(item => item.date >= now);
+    const visibleItems = todayItems.length ? todayItems : (nextUpcoming ? [nextUpcoming] : []);
+    timeline.innerHTML = visibleItems.length ? visibleItems.map((item, index) => buildDailyTimelineItem(item, index === 0, item.key !== todayKey)).join('') : `
+      <div class="daily-empty-card">
+        <span>✓</span>
+        <strong>今天没有临期待办</strong>
+        <small>适合复盘进展，或主动推进一个新机会</small>
+        <button type="button" onclick="window.openManualModal('')">新建求职环节</button>
+      </div>`;
+  }
+
+  const waitingApps = state.applications.map(app => {
+    const stages = state.stages.filter(stage => stage.application_id === app.id && !['pending', 'ignored'].includes(stage.stage_status)).sort((a, b) => (a.seq || 1) - (b.seq || 1));
+    const latest = getLatestStageContext(stages).representative;
+    return latest?.stage_status === 'awaiting_result' ? { app, stage: latest } : null;
+  }).filter(Boolean).slice(0, 2);
+
+  waitingList.innerHTML = waitingApps.length ? waitingApps.map(({ app, stage }) => {
+    const stageDate = parseScheduleDate(stage.schedule_time);
+    const days = stageDate ? Math.max(1, Math.floor((now - stageDate) / 86400000)) : null;
+    return `
+      <button type="button" class="daily-waiting-card" onclick="window.viewCompanyTimeline('${app.id}')">
+        <span class="daily-company-avatar">${escapeHtml((app.company || '企').slice(0, 1))}</span>
+        <span class="daily-waiting-copy"><strong>${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong><small>${escapeHtml(stage.stage_name || '当前环节')}结束${days ? ` ${days} 天` : '，等待反馈'}</small></span>
+        <span class="daily-reminder-pill">查看进展</span>
+      </button>`;
+  }).join('') : '<div class="daily-quiet-state">当前没有等待反馈的申请</div>';
+
+  if (inbox) {
+    inbox.classList.toggle('has-pending', pendingCount > 0);
+    inbox.querySelector('strong').textContent = pendingCount > 0 ? `${pendingCount} 封新邮件待确认` : '没有待确认邮件';
+    inbox.querySelector('small').textContent = pendingCount > 0 ? '快速核对后再加入申请档案' : 'AI 会在发现新进展时提醒你';
+  }
+}
+
+function buildDailyTimelineItem(item, isPrimary, isUpcoming) {
+  if (item.event) {
+    const time = `${String(item.date.getHours()).padStart(2, '0')}:${String(item.date.getMinutes()).padStart(2, '0')}`;
+    return `
+      <article class="daily-timeline-item ${isPrimary ? 'is-primary' : ''}">
+        <div class="daily-timeline-time"><strong>${time}</strong><i></i></div>
+        <button type="button" class="daily-action-card" onclick="window.openRecruitmentEvent('${item.event.id}')">
+          <span class="daily-card-head"><strong>${escapeHtml(item.event.title || '招聘会')}</strong><em>招聘会</em></span>
+          <small>${escapeHtml(item.event.location || '地点待确认')}</small>
+          <span class="daily-primary-action">查看活动</span>
+        </button>
+      </article>`;
+  }
+  const { app, stage, date } = item;
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  const typeLabel = getScheduleType(stage) === 'deadline' ? '截止' : escapeHtml(stage.stage_name || '待办');
+  const datePrefix = isUpcoming ? `${date.getMonth() + 1}月${date.getDate()}日 · ` : '';
+  return `
+    <article class="daily-timeline-item ${isPrimary ? 'is-primary' : ''}">
+      <div class="daily-timeline-time"><strong>${datePrefix}${time}</strong><i></i></div>
+      <div class="daily-action-card" onclick="window.viewCompanyTimeline('${app.id}')">
+        <span class="daily-card-head"><strong>${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong><em>${typeLabel}</em></span>
+        <small>${escapeHtml(stage.meeting_info || (getScheduleType(stage) === 'deadline' ? '请在截止前完成并提交' : '打开档案查看会议与准备信息'))}</small>
+        <div class="daily-card-actions" onclick="event.stopPropagation()">
+          <button type="button" class="daily-primary-action" onclick="window.viewCompanyTimeline('${app.id}')">${getScheduleType(stage) === 'deadline' ? '查看任务' : '开始准备'}</button>
+          <button type="button" class="daily-done-action" onclick="window.markStageComplete('${stage.id}')" aria-label="标记为已完成">✓</button>
+        </div>
+      </div>
+    </article>`;
+}
+
+window.openDailyDate = function(key) {
+  state.selectedCalendarKey = key;
+  const selected = parseScheduleDate(key);
+  if (selected) state.calendarCursor = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  switchToTab('view-calendar');
+};
 
 // ==================== 5. 渲染求职全景大厅 (Dashboard) ====================
 function renderDashboard() {

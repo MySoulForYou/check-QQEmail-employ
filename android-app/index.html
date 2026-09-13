@@ -13,14 +13,59 @@
     <!-- ==================== 1. 主视图容器 ==================== -->
     <div class="view-container">
 
+      <!-- ================= 视图 0: 小屏优先每日行动首页 (Today) ================= -->
+      <section id="view-dashboard" class="tab-view active daily-home-view">
+        <header class="daily-home-header">
+          <div class="daily-home-meta">
+            <span class="daily-wordmark">OfferPilot</span>
+            <span class="daily-current-date" id="daily-current-date">今天</span>
+            <button class="daily-profile-button" type="button" onclick="window.switchToTab('view-settings')" aria-label="打开个人设置">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.8-3.7 3.1-5.5 7-5.5s6.2 1.8 7 5.5"/></svg>
+            </button>
+          </div>
+          <h1>今天，稳稳推进</h1>
+          <p id="daily-summary-text">正在整理今天的求职安排…</p>
+          <div class="daily-week-strip" id="daily-week-strip"></div>
+        </header>
+
+        <main class="daily-home-content">
+          <section class="daily-section" aria-labelledby="daily-today-title">
+            <div class="daily-section-heading">
+              <h2 id="daily-today-title">今天</h2>
+              <button type="button" onclick="window.switchToTab('view-calendar')">查看日历</button>
+            </div>
+            <div class="daily-timeline" id="daily-timeline-list">
+              <div class="daily-loading-card">正在同步今日安排…</div>
+            </div>
+          </section>
+
+          <section class="daily-section daily-waiting-section" aria-labelledby="daily-waiting-title">
+            <div class="daily-section-heading">
+              <h2 id="daily-waiting-title">等待反馈</h2>
+              <button type="button" onclick="window.switchToTab('view-applications')">全部申请</button>
+            </div>
+            <div id="daily-waiting-list"></div>
+          </section>
+
+          <button class="daily-inbox-banner" id="daily-inbox-banner" type="button" onclick="window.switchToTab('view-review')">
+            <span class="daily-inbox-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+            </span>
+            <span class="daily-inbox-copy"><strong>没有待确认邮件</strong><small>AI 会在发现新进展时提醒你</small></span>
+            <span class="daily-chevron">›</span>
+          </button>
+        </main>
+
+        <button class="daily-fab" type="button" onclick="window.openManualModal('')" aria-label="新建求职环节">＋</button>
+      </section>
+
       <!-- ================= 视图 A: 求职全景看板大厅 (Dashboard) ================= -->
-      <section id="view-dashboard" class="tab-view active">
+      <section id="view-applications" class="tab-view">
         <!-- 顶栏 -->
         <header class="app-topbar">
           <div class="topbar-header-row">
             <div class="brand-badge">
-              <span class="sparkle-icon">✦</span>
-              <span class="brand-text">OfferPilot ATS</span>
+              <span class="brand-text">申请进展</span>
             </div>
             <button class="btn-create-header" id="btn-header-create-job">
               <span class="plus-icon">＋</span> 新建求职
@@ -45,48 +90,48 @@
           <!-- 卡片 1: 全部已建档企业 -->
           <div class="bento-card active" data-bento="all" id="bento-card-all">
             <div class="bento-header-row">
-              <span class="bento-title">🏢 全部已建档企业</span>
+              <span class="bento-title">全部</span>
               <span class="bento-status-tag pill-green" id="bento-tag-all">当前查看</span>
             </div>
             <div class="bento-body-row">
               <div class="bento-number" id="stat-total-companies">0</div>
-              <div class="bento-sub">全流程建档</div>
+              <div class="bento-sub">申请</div>
             </div>
           </div>
 
           <!-- 卡片 2: 待测评/投递/笔试/面试 -->
           <div class="bento-card" data-bento="todo" id="bento-card-todo">
             <div class="bento-header-row">
-              <span class="bento-title">⏳ 待测评/投递/笔试/面试</span>
+              <span class="bento-title">待办</span>
               <span class="bento-status-tag pill-indigo">点击过滤 ➔</span>
             </div>
             <div class="bento-body-row">
               <div class="bento-number text-indigo" id="stat-active-interviews">0</div>
-              <div class="bento-sub text-indigo">急需准备</div>
+              <div class="bento-sub text-indigo">项</div>
             </div>
           </div>
 
           <!-- 卡片 3: 等待结果中 -->
           <div class="bento-card" data-bento="waiting" id="bento-card-waiting">
             <div class="bento-header-row">
-              <span class="bento-title">🎯 等待结果中</span>
+              <span class="bento-title">等结果</span>
               <span class="bento-status-tag pill-amber">点击过滤 ➔</span>
             </div>
             <div class="bento-body-row">
               <div class="bento-number text-amber" id="stat-waiting-results">0</div>
-              <div class="bento-sub text-amber">等待官方反馈</div>
+              <div class="bento-sub text-amber">项</div>
             </div>
           </div>
 
           <!-- 卡片 4: 已录用 -->
           <div class="bento-card" data-bento="offer" id="bento-card-offer">
             <div class="bento-header-row">
-              <span class="bento-title">🏆 已录用</span>
+              <span class="bento-title">Offer</span>
               <span class="bento-status-tag pill-emerald">点击过滤 ➔</span>
             </div>
             <div class="bento-body-row">
               <div class="bento-number text-emerald" id="stat-offer-count">0</div>
-              <div class="bento-sub text-emerald">录用沟通</div>
+              <div class="bento-sub text-emerald">份</div>
             </div>
           </div>
         </div>
@@ -217,9 +262,9 @@
         <header class="app-topbar timeline-topbar">
           <!-- 全景时间顶部导航与快速搜索栏 -->
           <div class="timeline-top-nav-row">
-            <button class="btn-timeline-back" onclick="window.backToDashboard()" title="返回控制台">
+            <button class="btn-timeline-back" onclick="window.backToDashboard()" title="返回申请列表">
               <span class="back-arrow">←</span>
-              <span>返回</span>
+              <span>返回申请</span>
             </button>
             <div class="timeline-search-wrap">
               <span class="timeline-search-lens">🔍</span>
@@ -271,6 +316,19 @@
         </header>
 
         <div class="settings-content-body">
+          <div class="settings-card settings-shortcuts-card">
+            <div class="card-section-header">
+              <span class="section-icon">⌘</span>
+              <div class="section-title-group">
+                <h3>功能入口</h3>
+                <p>低频功能集中在这里，首页保持专注</p>
+              </div>
+            </div>
+            <div class="settings-shortcuts-grid">
+              <button type="button" onclick="window.switchToTab('view-review')"><span>邮件审核</span><small id="settings-review-count">查看 AI 待审结果</small></button>
+              <button type="button" onclick="window.switchToTab('view-events')"><span>招聘会</span><small>管理宣讲与线下活动</small></button>
+            </div>
+          </div>
           <!-- 视觉主题与风格切换卡片 -->
           <div class="settings-card">
             <div class="card-section-header">
@@ -357,7 +415,7 @@
 
             <div class="telemetry-item-row">
               <span class="telemetry-label">客户端版本</span>
-              <span class="telemetry-value-tag">v3.5.1 (Android Native)</span>
+              <span class="telemetry-value-tag">v3.5.2 (Android Native)</span>
             </div>
           </div>
 
@@ -710,34 +768,23 @@
     <!-- ==================== 5. 底部毛玻璃导航栏 (Bottom Navigation Bar) ==================== -->
     <nav class="bottom-nav-bar">
       <button class="nav-btn active" data-target="view-dashboard" id="nav-btn-dashboard">
-        <span class="nav-icon">📊</span>
-        <span class="nav-title">控制台</span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V20h-5v-5H9v5H4z"/></svg></span>
+        <span class="nav-title">今日</span>
+      </button>
+
+      <button class="nav-btn" data-target="view-applications" id="nav-btn-applications">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h3"/></svg></span>
+        <span class="nav-title">申请</span>
       </button>
 
       <button class="nav-btn" data-target="view-calendar" id="nav-btn-calendar">
-        <span class="nav-icon">📅</span>
-        <span class="nav-title">求职日历</span>
-      </button>
-
-      <button class="nav-btn" data-target="view-events" id="nav-btn-events">
-        <span class="nav-icon">🎪</span>
-        <span class="nav-title">招聘会</span>
-      </button>
-
-      <button class="nav-btn" data-target="view-review" id="nav-btn-review">
-        <span class="nav-icon">📬</span>
-        <span class="nav-title">审核管理</span>
-        <span class="nav-badge-dot" id="nav-review-badge" style="display:none;">0</span>
-      </button>
-
-      <button class="nav-btn" data-target="view-timeline" id="nav-btn-timeline">
-        <span class="nav-icon">⏳</span>
-        <span class="nav-title">全景档案</span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v13H5zM8 4v5M16 4v5M5 11h14"/></svg></span>
+        <span class="nav-title">日历</span>
       </button>
 
       <button class="nav-btn" data-target="view-settings" id="nav-btn-settings">
-        <span class="nav-icon">⚙️</span>
-        <span class="nav-title">个人设置</span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.8-3.7 3.1-5.5 7-5.5s6.2 1.8 7 5.5"/></svg></span>
+        <span class="nav-title">我的</span>
       </button>
     </nav>
 
