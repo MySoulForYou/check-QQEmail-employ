@@ -573,6 +573,39 @@ body {
   gap: 8px;
 }
 
+.mobile-card-top-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.mobile-focus-toggle {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #E6DED3;
+  border-radius: 50%;
+  background: #FFF;
+  color: #C6BDAF;
+  font-size: 17px;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(80, 58, 35, .06);
+}
+
+.mobile-focus-toggle.is-active {
+  color: #B96B00;
+  background: #FFF2BD;
+  border-color: #F3C34F;
+}
+
+.mobile-focus-toggle:active { transform: scale(.92); }
+.mobile-focus-toggle:disabled { opacity: .55; }
+.porcelain-job-card.is-focused { border-color: #F1C75B; box-shadow: 0 12px 30px rgba(180, 110, 0, .10); }
+
 .btn-card-check {
   width: 32px;
   height: 32px;
@@ -1923,6 +1956,46 @@ input:checked + .slider-toggle:before {
   padding: 0 4px;
 }
 
+/* ==================== 招聘会移动页 ==================== */
+.events-mobile-topbar { padding-bottom: 12px; }
+.events-mobile-tabs { display: flex; gap: 8px; overflow-x: auto; padding-top: 12px; }
+.events-mobile-tabs button { border: 1px solid var(--border-porcelain); border-radius: var(--radius-pill); background: #FFF; color: var(--text-sub); padding: 8px 15px; font-weight: 700; white-space: nowrap; }
+.events-mobile-tabs button.active { color: #8A5600; background: #FFF2C7; border-color: #EEC65B; }
+.events-mobile-message { color: #B45309; font-size: .78rem; padding: 0 18px; }
+.events-mobile-list { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.event-mobile-card { padding: 18px; border: 1px solid var(--border-porcelain); border-radius: var(--radius-xl); background: #FFF; box-shadow: var(--shadow-porcelain); }
+.event-mobile-card.is-focused { border-color: #F1C75B; background: linear-gradient(145deg, #FFFDF7, #FFF); box-shadow: 0 12px 30px rgba(180, 110, 0, .10); }
+.event-mobile-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.event-mobile-type { color: #7137B8; background: #F3EAFE; border-radius: var(--radius-pill); padding: 5px 10px; font-size: .72rem; font-weight: 800; }
+.event-mobile-card h2 { margin: 12px 0 5px; font-size: 1.05rem; color: var(--text-main); }
+.event-mobile-card p { margin: 4px 0; color: var(--text-sub); font-size: .8rem; line-height: 1.55; }
+.event-mobile-time { margin: 12px 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-card-secondary); color: var(--text-main); font-size: .82rem; font-weight: 700; line-height: 1.65; }
+.event-mobile-actions { display: flex; gap: 7px; overflow-x: auto; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.event-mobile-actions button, .event-mobile-actions a { flex: 0 0 auto; border: 1px solid var(--border-porcelain); border-radius: var(--radius-pill); background: #FFF; color: var(--text-main); padding: 7px 11px; text-decoration: none; font: 700 .72rem/1.2 inherit; }
+.events-mobile-empty { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-sub); background: #FFF; border: 1px dashed var(--border-porcelain); border-radius: var(--radius-xl); }
+.events-mobile-empty:first-letter { font-size: 2.5rem; }
+.events-mobile-empty strong { color: var(--text-main); }
+.events-mobile-empty span { font-size: .78rem; }
+
+.mobile-event-modal { position: fixed; inset: 0; z-index: 120; display: flex; align-items: flex-end; visibility: hidden; background: rgba(31, 25, 20, .32); opacity: 0; transition: opacity .2s ease, visibility .2s ease; }
+.mobile-event-modal.active { visibility: visible; opacity: 1; }
+.mobile-event-sheet { width: 100%; max-width: 480px; max-height: 91vh; margin: 0 auto; overflow-y: auto; padding: 18px 20px calc(24px + var(--safe-bottom)); border-radius: 24px 24px 0 0; background: #FFFDFC; transform: translateY(24px); transition: transform .25s ease; }
+.mobile-event-modal.active .mobile-event-sheet { transform: translateY(0); }
+.mobile-event-modal-head { position: sticky; top: -18px; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: -2px -2px 14px; padding: 10px 2px; background: rgba(255, 253, 252, .96); }
+.mobile-event-modal-head h2 { margin: 0; font-size: 1.15rem; }
+.mobile-event-modal-head button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--bg-card-secondary); font-size: 1.35rem; }
+.mobile-event-sheet form { display: flex; flex-direction: column; gap: 12px; }
+.mobile-event-sheet label { display: flex; flex-direction: column; gap: 6px; color: var(--text-main); font-size: .78rem; font-weight: 700; }
+.mobile-event-sheet input, .mobile-event-sheet select, .mobile-event-sheet textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--border-porcelain); border-radius: var(--radius-md); background: var(--bg-card-secondary); color: var(--text-main); padding: 11px 12px; font: inherit; }
+.mobile-event-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.mobile-event-sheet .mobile-event-check { flex-direction: row; align-items: center; }
+.mobile-event-check input { width: 18px; height: 18px; }
+#mobile-event-form-message { margin: 0; color: var(--accent-rose); font-size: .76rem; }
+.mobile-event-save { border: 0; border-radius: var(--radius-pill); background: #211B17; color: #FFF; padding: 13px; font-weight: 800; }
+.dot-recruitment-event { background: #A855F7; }
+.agenda-type-event { color: #7E22CE; background: #F3E8FF; }
+.agenda-recruitment-event { border-color: #E9D5FF; }
+
 /* ==================== 11. 全局 Toast 提示 ==================== */
 .toast-container {
   position: fixed;
@@ -2613,5 +2686,3 @@ body[data-theme="creamy-luminous"] .cal-day-cell.is-selected {
   color: var(--accent-indigo);
   margin-left: 6px;
 }
-
-

@@ -24,6 +24,10 @@ function formatCalendarKey(date) {
 const state = {
   applications: [],
   stages: [],
+  recruitmentEvents: [],
+  recruitmentEventsError: '',
+  recruitmentEventFilter: 'planned',
+  recruitmentEventQuery: '',
   activeBento: 'all',        // 'all' | 'todo' | 'waiting' | 'offer' (上层待办/结果状态维度)
   activeProgress: 'all',     // 'all' | 'assessment' | 'written_test' | 'interview' | 'offer' | 'terminated' (下层当前流程进度阶段维度)
   searchQuery: '',
@@ -57,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard();
     renderUrgentBanner();
     renderCalendar();
+    renderRecruitmentEvents();
     renderReviewHall();
   }
 
@@ -145,6 +150,9 @@ function switchToTab(tabId) {
   } else if (tabId === 'view-calendar') {
     // 切换到求职日历
     renderCalendar();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (tabId === 'view-events') {
+    renderRecruitmentEvents();
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else {
     // 切换到全景时间、待审大厅或设置时：顶部对齐
@@ -276,14 +284,17 @@ async function loadAllData(showLoading = true) {
   if (showLoading && loadingEl) loadingEl.style.display = 'flex';
 
   try {
-    const { applications, stages } = await supabaseService.fetchApplicationsWithStages();
+    const { applications, stages, recruitmentEvents, recruitmentEventsError } = await supabaseService.fetchApplicationsWithStages();
     state.applications = applications || [];
     state.stages = stages || [];
+    state.recruitmentEvents = recruitmentEvents || [];
+    state.recruitmentEventsError = recruitmentEventsError || '';
 
     updateKPIStats();
     renderDashboard();
     renderUrgentBanner();
     renderCalendar();
+    renderRecruitmentEvents();
     renderReviewHall();
     updateReviewBadge();
 
@@ -517,6 +528,8 @@ function renderDashboard() {
     list = list.filter(app => app.progressCategory === 'terminated');
   }
 
+  list.sort((a, b) => Number(Boolean(b.is_focused)) - Number(Boolean(a.is_focused)));
+
   if (list.length === 0) {
     container.innerHTML = `
       <div class="empty-loading-state">
@@ -582,7 +595,7 @@ function renderDashboard() {
     const stepperHtml = buildStepperHtml(item.stages, stageName, isOffered);
 
     html += `
-      <div class="porcelain-job-card" onclick="window.viewCompanyTimeline('${item.id}')">
+      <div class="porcelain-job-card${item.is_focused ? ' is-focused' : ''}" onclick="window.viewCompanyTimeline('${item.id}')">
         <div class="card-top-info">
           <div class="company-brand-group">
             <div class="company-logo-avatar ${avatarClass}">${avatarLetter}</div>
@@ -595,7 +608,10 @@ function renderDashboard() {
               </div>
             </div>
           </div>
-          ${timePillHtml}
+          <div class="mobile-card-top-actions">
+            <button type="button" class="mobile-focus-toggle${item.is_focused ? ' is-active' : ''}" onclick="event.stopPropagation(); window.toggleApplicationFocus('${item.id}', this)" aria-label="${item.is_focused ? '取消重点关心' : '设为重点关心'}" aria-pressed="${Boolean(item.is_focused)}">★</button>
+            ${timePillHtml}
+          </div>
         </div>
 
         <!-- 水平 Stepper 求职链路 -->
@@ -625,6 +641,23 @@ function renderDashboard() {
 
   container.innerHTML = html;
 }
+
+window.toggleApplicationFocus = async function(id, button) {
+  const app = state.applications.find(item => item.id === id);
+  if (!app || !button) return;
+  const isFocused = !app.is_focused;
+  button.disabled = true;
+  try {
+    await supabaseService.updateApplicationFocus(id, isFocused);
+    app.is_focused = isFocused;
+    renderDashboard();
+    triggerHaptic('medium');
+    showToast(isFocused ? `★ 已重点关心 ${app.company}` : `已取消重点关心 ${app.company}`);
+  } catch (error) {
+    button.disabled = false;
+    showToast(`⚠️ 更新失败：${error.message}`);
+  }
+};
 
 // 渲染水平 Stepper 步进条 (100% 依据该企业真实已准入的环节动态生成)
 function buildStepperHtml(stages, currentStageName, isOffered) {
@@ -1429,7 +1462,9 @@ function showToast(msg) {
 
   const toast = document.createElement('div');
   toast.className = 'app-toast';
-  toast.innerHTML = `<span>${msg}</span>`;
+  const text = document.createElement('span');
+  text.textContent = String(msg || '');
+  toast.appendChild(text);
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -1637,15 +1672,198 @@ function renderUrgentBanner() {
 }
 
 // ==========================================================================
-// 13. 求职日历大厅与当日事项核心逻辑 (Calendar View & Daily Agenda)
+// 13. 招聘会管理（与 Web 管理端共用 recruitment_events）
+// ==========================================================================
+function eventTimeText(value) {
+  if (!value) return '待定';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '待定';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function eventLocalInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${formatCalendarKey(date)}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function normalizeEventUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  try {
+    const parsed = new URL(text);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
+  } catch (_) { return ''; }
+}
+
+function renderRecruitmentEvents() {
+  const list = document.getElementById('events-mobile-list');
+  const message = document.getElementById('events-mobile-message');
+  if (!list) return;
+  if (message) message.textContent = state.recruitmentEventsError || (!supabaseService.getConfig().isConfigured ? '请先在个人设置中连接 Supabase。' : '');
+  document.querySelectorAll('[data-event-filter]').forEach(button => button.classList.toggle('active', button.dataset.eventFilter === state.recruitmentEventFilter));
+  const items = state.recruitmentEvents.filter(event => event.status === state.recruitmentEventFilter &&
+    [event.title, event.organizer, event.location].some(value => String(value || '').toLowerCase().includes(state.recruitmentEventQuery)))
+    .sort((a, b) => Number(Boolean(b.is_focused)) - Number(Boolean(a.is_focused)) || new Date(a.starts_at) - new Date(b.starts_at));
+  if (!items.length) {
+    list.innerHTML = '<div class="events-mobile-empty">🎪<strong>暂无匹配的招聘会</strong><span>点击右上角“新增”记录活动</span></div>';
+    return;
+  }
+  list.innerHTML = items.map(event => {
+    const url = normalizeEventUrl(event.url);
+    return `
+      <article class="event-mobile-card${event.is_focused ? ' is-focused' : ''}">
+        <div class="event-mobile-heading">
+          <span class="event-mobile-type">${escapeHtml(event.event_type || '招聘会')}</span>
+          <button type="button" class="mobile-focus-toggle${event.is_focused ? ' is-active' : ''}" onclick="window.toggleRecruitmentEventFocus('${event.id}', this)" aria-label="${event.is_focused ? '取消重点关心' : '设为重点关心'}" aria-pressed="${Boolean(event.is_focused)}">★</button>
+        </div>
+        <h2>${escapeHtml(event.title)}</h2>
+        <p>${escapeHtml(event.organizer || '主办方未填写')}</p>
+        <div class="event-mobile-time">开始 · ${escapeHtml(eventTimeText(event.starts_at))}${event.ends_at ? `<br>结束 · ${escapeHtml(eventTimeText(event.ends_at))}` : ''}</div>
+        <p>地点 · ${escapeHtml(event.location || '线上 / 待补充')}</p>
+        <div class="event-mobile-actions">
+          <button onclick="window.openRecruitmentEvent('${event.id}')">编辑</button>
+          ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">活动链接 ↗</a>` : ''}
+          ${event.status !== 'cancelled' ? `<button onclick="window.toggleRecruitmentEventCalendar('${event.id}', this)">${event.in_calendar ? '移出日历' : '加入日历'}</button>` : ''}
+          ${event.status === 'planned' ? `<button onclick="window.markRecruitmentEventAttended('${event.id}', this)">✓ 已参加</button>` : ''}
+        </div>
+      </article>`;
+  }).join('');
+}
+
+window.searchRecruitmentEvents = function(value) {
+  state.recruitmentEventQuery = String(value || '').trim().toLowerCase();
+  renderRecruitmentEvents();
+};
+
+window.setRecruitmentEventFilter = function(filter) {
+  state.recruitmentEventFilter = filter;
+  triggerHaptic('light');
+  renderRecruitmentEvents();
+};
+
+async function updateMobileRecruitmentEvent(id, changes, button, successText) {
+  const event = state.recruitmentEvents.find(item => item.id === id);
+  if (!event || !button) return false;
+  button.disabled = true;
+  try {
+    const updated = await supabaseService.updateRecruitmentEvent(id, { ...changes, updated_at: new Date().toISOString() });
+    Object.assign(event, updated);
+    renderRecruitmentEvents();
+    renderCalendar();
+    triggerHaptic('medium');
+    showToast(successText);
+    return true;
+  } catch (error) {
+    button.disabled = false;
+    showToast(`⚠️ 更新失败：${error.message}`);
+    return false;
+  }
+}
+
+window.toggleRecruitmentEventFocus = function(id, button) {
+  const event = state.recruitmentEvents.find(item => item.id === id);
+  if (event) updateMobileRecruitmentEvent(id, { is_focused: !event.is_focused }, button, event.is_focused ? '已取消重点关心' : '★ 已设为重点关心');
+};
+
+window.toggleRecruitmentEventCalendar = function(id, button) {
+  const event = state.recruitmentEvents.find(item => item.id === id);
+  if (event) updateMobileRecruitmentEvent(id, { in_calendar: !event.in_calendar }, button, event.in_calendar ? '已移出求职日历' : '已加入求职日历');
+};
+
+window.markRecruitmentEventAttended = function(id, button) {
+  updateMobileRecruitmentEvent(id, { status: 'attended' }, button, '已标记参加');
+};
+
+window.openRecruitmentEvent = function(id = '') {
+  const event = state.recruitmentEvents.find(item => item.id === id) || {};
+  let overlay = document.getElementById('mobile-event-modal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'mobile-event-modal';
+    overlay.className = 'mobile-event-modal';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div class="mobile-event-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-event-modal-title">
+      <div class="mobile-event-modal-head"><h2 id="mobile-event-modal-title">${id ? '编辑招聘会' : '新增招聘会'}</h2><button onclick="window.closeRecruitmentEvent()" aria-label="关闭">×</button></div>
+      <form id="mobile-event-form">
+        <input type="hidden" name="id" value="${escapeHtml(event.id || '')}">
+        <label>活动名称 *<input name="title" required maxlength="160" value="${escapeHtml(event.title || '')}"></label>
+        <label>活动类型<select name="event_type"><option>招聘会</option><option>双选会</option><option>宣讲会</option></select></label>
+        <label>主办方<input name="organizer" maxlength="160" value="${escapeHtml(event.organizer || '')}"></label>
+        <div class="mobile-event-form-row"><label>开始时间 *<input name="starts_at" type="datetime-local" required value="${eventLocalInput(event.starts_at)}"></label><label>结束时间<input name="ends_at" type="datetime-local" value="${eventLocalInput(event.ends_at)}"></label></div>
+        <label>地点<input name="location" maxlength="300" value="${escapeHtml(event.location || '')}"></label>
+        <label>活动链接<input name="url" type="url" value="${escapeHtml(event.url || '')}" placeholder="https://…"></label>
+        <label>参加状态<select name="status"><option value="planned">待参加</option><option value="attended">已参加</option><option value="cancelled">已取消</option></select></label>
+        <label>备注<textarea name="notes" rows="3">${escapeHtml(event.notes || '')}</textarea></label>
+        <label class="mobile-event-check"><input name="is_focused" type="checkbox" ${event.is_focused ? 'checked' : ''}> 设为重点关心</label>
+        <label class="mobile-event-check"><input name="in_calendar" type="checkbox" ${event.in_calendar !== false ? 'checked' : ''}> 加入求职日历</label>
+        <p id="mobile-event-form-message"></p>
+        <button class="mobile-event-save" type="submit">保存活动</button>
+      </form>
+    </div>`;
+  const form = document.getElementById('mobile-event-form');
+  form.elements.event_type.value = event.event_type || '招聘会';
+  form.elements.status.value = event.status || 'planned';
+  form.onsubmit = saveMobileRecruitmentEvent;
+  overlay.classList.add('active');
+  triggerHaptic('light');
+};
+
+window.closeRecruitmentEvent = function() {
+  document.getElementById('mobile-event-modal')?.classList.remove('active');
+};
+
+async function saveMobileRecruitmentEvent(submitEvent) {
+  submitEvent.preventDefault();
+  const form = submitEvent.currentTarget;
+  const fields = form.elements;
+  const message = document.getElementById('mobile-event-form-message');
+  const start = new Date(fields.starts_at.value);
+  const end = fields.ends_at.value ? new Date(fields.ends_at.value) : null;
+  if (!fields.title.value.trim() || Number.isNaN(start.getTime()) || (end && (Number.isNaN(end.getTime()) || end < start))) {
+    message.textContent = '请填写活动名称和有效时间，结束时间不能早于开始时间。';
+    return;
+  }
+  const url = normalizeEventUrl(fields.url.value);
+  if (fields.url.value.trim() && !url) { message.textContent = '活动链接仅支持 HTTP(S) 网址。'; return; }
+  const payload = {
+    title: fields.title.value.trim(), event_type: fields.event_type.value,
+    organizer: fields.organizer.value.trim(), starts_at: start.toISOString(), ends_at: end ? end.toISOString() : null,
+    location: fields.location.value.trim(), url, notes: fields.notes.value.trim(), status: fields.status.value,
+    is_focused: fields.is_focused.checked, in_calendar: fields.in_calendar.checked, updated_at: new Date().toISOString()
+  };
+  const button = form.querySelector('[type="submit"]');
+  button.disabled = true;
+  try {
+    await supabaseService.saveRecruitmentEvent(payload, fields.id.value);
+    window.closeRecruitmentEvent();
+    await loadAllData(false);
+    showToast('招聘会已保存并同步');
+  } catch (error) {
+    message.textContent = `保存失败：${error.message}`;
+    button.disabled = false;
+  }
+}
+
+// ==========================================================================
+// 14. 求职日历大厅与当日事项核心逻辑 (Calendar View & Daily Agenda)
 // ==========================================================================
 function getCalendarEntries() {
-  return state.stages.map(stage => {
+  const stageEntries = state.stages.map(stage => {
     if (['pending', 'ignored'].includes(stage.stage_status)) return null;
     const date = parseScheduleDate(stage.schedule_time);
     const app = state.applications.find(item => item.id === stage.application_id);
     return date && app ? { stage, app, date, key: formatCalendarKey(date) } : null;
-  }).filter(Boolean).sort((a, b) => a.date - b.date);
+  }).filter(Boolean);
+  const eventEntries = state.recruitmentEvents.flatMap(event => {
+    if (!event.in_calendar || event.status === 'cancelled') return [];
+    const date = new Date(event.starts_at);
+    return Number.isNaN(date.getTime()) ? [] : [{ event, date, key: formatCalendarKey(date) }];
+  });
+  return stageEntries.concat(eventEntries).sort((a, b) => a.date - b.date);
 }
 
 function renderCalendar() {
@@ -1677,6 +1895,7 @@ function renderCalendar() {
     if (items.length > 0) {
       const topItems = items.slice(0, 3);
       dotsHtml = `<div class="cal-dots-wrap">${topItems.map(item => {
+        if (item.event) return '<span class="cal-event-dot dot-recruitment-event"></span>';
         const cat = getStageProgressCategory(item.app, item.stage);
         return `<span class="cal-event-dot dot-${cat}"></span>`;
       }).join('')}</div>`;
@@ -1731,6 +1950,19 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
   }
 
   const itemsHtml = items.map(item => {
+    if (item.event) {
+      const event = item.event;
+      const time = `${item.date.getHours().toString().padStart(2, '0')}:${item.date.getMinutes().toString().padStart(2, '0')}`;
+      return `
+        <div class="agenda-item-card agenda-recruitment-event" onclick="window.closeCalendarAgendaSheetDirect(); window.openRecruitmentEvent('${event.id}')">
+          <div class="agenda-left-info">
+            <div class="agenda-item-time-row"><span class="agenda-time-text">⏱ ${time}</span><span class="agenda-type-tag agenda-type-event">招聘会</span></div>
+            <div class="agenda-company-title">${event.is_focused ? '★ ' : ''}${escapeHtml(event.title)}</div>
+            <div class="agenda-stage-subtitle">${escapeHtml(event.organizer || '主办方未填写')} · ${escapeHtml(event.location || '线上 / 待补充')}</div>
+          </div>
+          <span class="bento-status-tag pill-amber">${event.status === 'attended' ? '已参加' : '待参加'}</span>
+        </div>`;
+    }
     const { stage, app, date } = item;
     const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     const scheduleType = getScheduleType(stage);
@@ -1776,7 +2008,7 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
 }
 
 // ==========================================================================
-// 14. 移动端快捷事件响应 (日历翻页、选择、弹出悬浮框、邮件主题复制)
+// 15. 移动端快捷事件响应 (日历翻页、选择、弹出悬浮框、邮件主题复制)
 // ==========================================================================
 window.changeCalendarMonth = function(offset) {
   state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + offset, 1);
@@ -1868,5 +2100,3 @@ window.copyCurrentDrawerEmailSubject = function() {
   const company = app ? app.company : '';
   window.copyEmailSubjectAndNotice(stage ? stage.raw_subject : '', company);
 };
-
-
