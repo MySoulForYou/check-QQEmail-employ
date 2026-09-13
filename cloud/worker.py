@@ -11,10 +11,10 @@ import httpx
 from urllib.parse import quote
 from openai import OpenAI
 try:
-    from cloud.normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name
+    from cloud.normalization import normalize_company_website, normalize_email_event_type, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name, normalize_proposed_stage_status
 except ModuleNotFoundError:
     # 兼容直接执行 `python cloud/worker.py` 的本地启动方式。
-    from normalization import normalize_company_website, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name
+    from normalization import normalize_company_website, normalize_email_event_type, normalize_extracted_position, normalize_extracted_schedule_type, normalize_extracted_stage_name, normalize_proposed_stage_status
 
 # 配置日志输出格式
 logging.basicConfig(
@@ -178,6 +178,18 @@ class CloudSyncWorker:
                     if s.get("application_id"):
                         active_app_ids.add(s["application_id"])
 
+            # 尚未审核的新路线可能还没有真实阶段，但仍需进入 AI 路线匹配上下文，
+            # 否则同公司连续提醒会被误建成多个投递单。
+            resp_notifications = httpx.get(
+                f"{self.supabase_url}/rest/v1/stage_notifications?review_status=eq.pending&select=application_id",
+                headers=self.sb_headers,
+                timeout=10.0
+            )
+            if resp_notifications.status_code == 200:
+                for item in resp_notifications.json() or []:
+                    if item.get("application_id"):
+                        active_app_ids.add(item["application_id"])
+
             resp = httpx.get(
                 f"{self.supabase_url}/rest/v1/applications?overall_status=eq.active&select=id,company,department,position,current_stage_name&order=updated_at.desc",
                 headers=self.sb_headers,
@@ -237,6 +249,15 @@ class CloudSyncWorker:
    - next_expectation: 客观严谨的本轮流转与等待预期（如：等待一面结果、等待笔试结果、等待正式Offer邮件、流程结束等）
    - notes: 关键备注与注意事项（如双机位要求、自备简历等，无则留空）
    - urgent: 布尔值（如果是48小时内的面试/笔试，则为 true，否则为 false）
+   - email_event_type: 判断这封邮件与目标阶段的关系，只能是：
+     * new_stage：首次出现的全新流程阶段或明确进入下一轮
+     * reminder：同一阶段、同一安排的再次提醒/催办，不代表进入下一轮
+     * reschedule：同一阶段的时间、地点或安排发生变更
+     * result：现有阶段的通过、未通过或结果通知；正式 Offer 属于真实的新阶段，应返回 new_stage
+     * cancel：现有阶段或安排被取消
+   - proposed_stage_status: 根据邮件客观内容建议的阶段状态，只能是 scheduled、awaiting_result、passed、failed、offered、cancelled。无法判断时：有明确待参加时间返回 scheduled；结果尚未明确返回 awaiting_result。
+
+   重要：相同公司针对同一测评、笔试或面试发送的第二封及后续提醒邮件，必须返回 reminder，不能返回 new_stage；改期通知必须返回 reschedule。
 
 3. 🌟【求职路线归属研判 (Route Matching)】：
    请对比新邮件与【活跃求职档案清单】：
@@ -258,6 +279,8 @@ class CloudSyncWorker:
     "meeting_info": "https://公司官网地址",
     "next_expectation": "本轮等待预期",
     "notes": "备注/注意事项",
+    "email_event_type": "new_stage/reminder/reschedule/result/cancel",
+    "proposed_stage_status": "scheduled/awaiting_result/passed/failed/offered/cancelled",
     "urgent": false
 }}
 """
@@ -288,8 +311,27 @@ class CloudSyncWorker:
             logging.error(f"❌ AI 解析异常: {e}")
             raise e
 
+    def _find_target_stage(self, app_id, stage_name):
+        """为提醒、改期、结果与取消邮件寻找真实阶段；优先同名，兜底最新有效阶段。"""
+        query_url = (
+            f"{self.supabase_url}/rest/v1/application_stages"
+            f"?application_id=eq.{quote(str(app_id), safe='')}"
+            f"&stage_status=neq.ignored"
+            f"&select=id,seq,stage_name,stage_status,schedule_time"
+            f"&order=seq.desc"
+        )
+        response = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
+        if response.status_code != 200:
+            return None
+        stages = response.json() or []
+        target_name = normalize_extracted_stage_name(stage_name)
+        return next(
+            (stage for stage in stages if normalize_extracted_stage_name(stage.get("stage_name")) == target_name),
+            stages[0] if stages else None
+        )
+
     def upsert_recruitment_event(self, ai_data, raw_email_id, raw_subject):
-        """将 AI 解析结果写入 applications 主表与 application_stages 子表"""
+        """将邮件写入待审事件表；审核前不创建阶段、不推进主表状态。"""
         try:
             company = (ai_data.get("company") or "其他/未识别公司").strip()
             department = (ai_data.get("department") or "").strip()
@@ -300,32 +342,35 @@ class CloudSyncWorker:
             meeting_info = normalize_company_website(ai_data.get("meeting_info"))
             next_exp = (ai_data.get("next_expectation") or "").strip()
             notes = (ai_data.get("notes") or "").strip()
+            event_type = normalize_email_event_type(ai_data.get("email_event_type"))
+            proposed_status = normalize_proposed_stage_status(
+                ai_data.get("proposed_stage_status"), event_type, schedule_time
+            )
             matched_app_id = ai_data.get("matched_application_id")
+            email_uid = str(raw_email_id or "").strip()
 
-            # 1. 幂等检查：检查该 raw_email_id 是否已经入库过
-            if raw_email_id:
-                check_url = f"{self.supabase_url}/rest/v1/application_stages?raw_email_id=eq.{quote(str(raw_email_id), safe='')}&select=id"
-                resp_chk = httpx.get(check_url, headers=self.sb_headers, timeout=10.0)
-                if resp_chk.status_code == 200 and resp_chk.json():
-                    logging.info(f"⏭️ 邮件 UID {raw_email_id} 已存在，跳过重复写入")
-                    return True
+            # 1. 双表兼容幂等检查：新表负责未来邮件，旧表阻止迁移前邮件被再次导入。
+            if email_uid:
+                encoded_uid = quote(email_uid, safe='')
+                for table in ("stage_notifications", "application_stages"):
+                    check_url = f"{self.supabase_url}/rest/v1/{table}?raw_email_id=eq.{encoded_uid}&select=id"
+                    response = httpx.get(check_url, headers=self.sb_headers, timeout=10.0)
+                    if response.status_code == 200 and response.json():
+                        logging.info(f"⏭️ 邮件 UID {email_uid} 已存在，跳过重复写入")
+                        return True
 
-            # 2. 匹配已有投递单 (Applications)
-            app_id = None
+            # 2. 匹配已有投递路线。
             matched_app = None
-
-            # 优先 2.1：使用 AI 上下文决策返回的 matched_application_id
             if matched_app_id and str(matched_app_id).strip().lower() not in ["null", "none", ""]:
                 chk_app_url = f"{self.supabase_url}/rest/v1/applications?id=eq.{quote(str(matched_app_id), safe='')}&select=id,company,position,current_stage_name"
-                resp_chk_app = httpx.get(chk_app_url, headers=self.sb_headers, timeout=10.0)
-                if resp_chk_app.status_code == 200 and resp_chk_app.json():
-                    matched_app = resp_chk_app.json()[0]
+                response = httpx.get(chk_app_url, headers=self.sb_headers, timeout=10.0)
+                if response.status_code == 200 and response.json():
+                    matched_app = response.json()[0]
                     logging.info(
                         f"🧠 AI 智能研判匹配成功: [{matched_app.get('company')}] "
                         f"{matched_app.get('position')} (理由: {ai_data.get('match_reason', '同一求职路线')})"
                     )
 
-            # 兜底 2.2：若 AI 未返回 matched_id（或返回为 null），进行安全数据库回退匹配
             if not matched_app:
                 if position == "未指定岗位":
                     query_url = (
@@ -345,119 +390,106 @@ class CloudSyncWorker:
                     if department:
                         query_url += f"&department=eq.{quote(department, safe='')}"
 
-                resp_app = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
-                if resp_app.status_code == 200:
-                    candidates = resp_app.json()
+                response = httpx.get(query_url, headers=self.sb_headers, timeout=10.0)
+                if response.status_code == 200:
+                    candidates = response.json() or []
                     if position != "未指定岗位" and candidates:
                         matched_app = candidates[0]
                     elif position == "未指定岗位" and len(candidates) == 1:
                         matched_app = candidates[0]
-                        logging.info(
-                            f"📎 邮件未注明岗位，自动归属到该公司唯一活跃投递: "
-                            f"[{company}] {matched_app.get('position', '未指定岗位')}"
-                        )
                     elif position == "未指定岗位" and len(candidates) > 1:
-                        unspecified_apps = [
-                            app for app in candidates
-                            if app.get("position") == "未指定岗位"
-                        ]
+                        unspecified_apps = [app for app in candidates if app.get("position") == "未指定岗位"]
                         if len(unspecified_apps) == 1:
                             matched_app = unspecified_apps[0]
-                            logging.info(f"📎 复用 [{company}] 已有的未指定岗位投递单")
 
             if matched_app:
-                # 复用已有投递单
-                app_data = matched_app
-                app_id = app_data["id"]
-                logging.info(
-                    f"📂 关联到投递单: [{company}] "
-                    f"{app_data.get('position', position)} (ID: {app_id})"
-                )
-
-                # 更新主表最新环节快照与更新时间
-                update_url = f"{self.supabase_url}/rest/v1/applications?id=eq.{app_id}"
-                resp_update = httpx.patch(
-                    update_url,
-                    headers=self.sb_headers,
+                app_id = matched_app["id"]
+                logging.info(f"📂 邮件关联到投递路线: [{company}] {matched_app.get('position', position)} (ID: {app_id})")
+            else:
+                headers_return = dict(self.sb_headers)
+                headers_return["Prefer"] = "return=representation"
+                now = datetime.now().isoformat()
+                response = httpx.post(
+                    f"{self.supabase_url}/rest/v1/applications",
+                    headers=headers_return,
                     json={
-                        "current_stage_name": stage_name,
-                        "updated_at": datetime.now().isoformat()
+                        "company": company,
+                        "department": department,
+                        "position": position,
+                        "recruitment_season": "2027届秋招",
+                        "current_stage_name": "待审核",
+                        "overall_status": "active",
+                        "created_at": now,
+                        "updated_at": now
                     },
                     timeout=10.0
                 )
-                if resp_update.status_code not in [200, 204]:
-                    logging.error(f"❌ 更新投递主表失败: {resp_update.status_code}, {resp_update.text}")
+                if response.status_code not in [200, 201] or not response.json():
+                    logging.error(f"❌ 创建待审核投递路线失败: {response.status_code}, {response.text}")
                     return False
-            else:
-                # 新建投递单
-                headers_return = dict(self.sb_headers)
-                headers_return["Prefer"] = "return=representation"
+                app_id = response.json()[0]["id"]
+                logging.info(f"✨ 创建待审核投递路线: [{company}] {position} (ID: {app_id})")
 
-                new_app_payload = {
-                    "company": company,
-                    "department": department,
-                    "position": position,
-                    "recruitment_season": "2027届秋招",
-                    "current_stage_name": stage_name,
-                    "overall_status": "active",
-                    "created_at": datetime.now().isoformat(),
-                    "updated_at": datetime.now().isoformat()
-                }
-
-                resp_create = httpx.post(
-                    f"{self.supabase_url}/rest/v1/applications",
-                    headers=headers_return,
-                    json=new_app_payload,
-                    timeout=10.0
+            # 3. 同阶段连续邮件的业务级防重：已有待审“新阶段”时，后续同名邮件不再占新轮次。
+            pending_url = (
+                f"{self.supabase_url}/rest/v1/stage_notifications"
+                f"?application_id=eq.{quote(str(app_id), safe='')}"
+                f"&review_status=eq.pending"
+                f"&proposed_stage_name=eq.{quote(stage_name, safe='')}"
+                f"&select=id,event_type,stage_id,schedule_time"
+                f"&order=received_at.desc&limit=1"
+            )
+            response = httpx.get(pending_url, headers=self.sb_headers, timeout=10.0)
+            pending_match = response.json()[0] if response.status_code == 200 and response.json() else None
+            if event_type == "new_stage" and pending_match:
+                event_type = "reschedule" if schedule_time not in ("", "待定") and pending_match.get("schedule_time") not in ("", "待定", schedule_time) else "reminder"
+                proposed_status = normalize_proposed_stage_status(
+                    ai_data.get("proposed_stage_status"), event_type, schedule_time
                 )
+                logging.info(f"🔗 同阶段已有待审邮件，自动归并为 {event_type}: [{stage_name}]")
 
-                if resp_create.status_code in [200, 201] and resp_create.json():
-                    app_id = resp_create.json()[0]["id"]
-                    logging.info(f"✨ 成功新建投递单: [{company}] {position} (ID: {app_id})")
-                else:
-                    logging.error(f"❌ 创建投递单失败: {resp_create.status_code}, {resp_create.text}")
-                    return False
+            target_stage = None
+            if event_type != "new_stage":
+                target_stage = self._find_target_stage(app_id, stage_name)
+            target_stage_id = (target_stage or {}).get("id") or (pending_match or {}).get("stage_id")
 
-            # 3. 计算下一轮 seq 序号
-            seq_url = f"{self.supabase_url}/rest/v1/application_stages?application_id=eq.{app_id}&select=seq&order=seq.desc&limit=1"
-            resp_seq = httpx.get(seq_url, headers=self.sb_headers, timeout=10.0)
-            next_seq = 1
-            if resp_seq.status_code == 200 and resp_seq.json():
-                next_seq = int(resp_seq.json()[0].get("seq", 0)) + 1
-
-            # 4. 插入 application_stages 子表
-            stage_payload = {
+            # 4. 只写入邮件事件。真实阶段由审核动作按事件类型创建或更新。
+            now = datetime.now().isoformat()
+            notification_payload = {
                 "application_id": app_id,
-                "seq": next_seq,
-                "stage_name": stage_name,
-                "stage_status": "pending", # 新邮件默认进入待审大厅
+                "stage_id": target_stage_id,
+                "raw_email_id": email_uid,
+                "event_type": event_type,
+                "review_status": "pending",
+                "proposed_stage_name": stage_name,
+                "proposed_stage_status": proposed_status,
                 "schedule_time": schedule_time,
                 "schedule_type": schedule_type,
                 "meeting_info": meeting_info,
                 "next_expectation": next_exp,
-                "raw_email_id": str(raw_email_id),
                 "raw_subject": raw_subject,
                 "notes": notes,
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
+                "received_at": now,
+                "created_at": now,
+                "updated_at": now
             }
-
-            resp_stage = httpx.post(
-                f"{self.supabase_url}/rest/v1/application_stages",
+            response = httpx.post(
+                f"{self.supabase_url}/rest/v1/stage_notifications",
                 headers=self.sb_headers,
-                json=stage_payload,
+                json=notification_payload,
                 timeout=10.0
             )
-
-            if resp_stage.status_code in [200, 201]:
-                logging.info(f"💾 环节已存入云端子表: 第{next_seq}轮 [{stage_name}] 投递单={app_id}")
+            if response.status_code in [200, 201]:
+                logging.info(f"📨 邮件事件已进入待审: {event_type} [{stage_name}] 投递路线={app_id}")
                 return True
-            else:
-                logging.error(f"❌ 环节子表入库失败: {resp_stage.status_code}, {resp_stage.text}")
-                return False
 
+            logging.error(
+                f"❌ 邮件事件写入失败: {response.status_code}, {response.text}。"
+                "请先执行 supabase/stage_notifications.sql"
+            )
+            return False
         except Exception as e:
-            logging.error(f"❌ 写入主子表异常: {e}")
+            logging.error(f"❌ 写入邮件事件异常: {e}")
             return False
 
     def process_ai_result(self, ai_result, raw_email_id, raw_subject):

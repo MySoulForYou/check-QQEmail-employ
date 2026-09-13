@@ -38,6 +38,8 @@ class WorkerAIMatcherTests(unittest.TestCase):
             "meeting_info": "https://join.qq.com",
             "next_expectation": "等待一面结果",
             "notes": "自备简历",
+            "email_event_type": "new_stage",
+            "proposed_stage_status": "scheduled",
             "urgent": False
         })
         mock_choice.message = mock_message
@@ -66,14 +68,17 @@ class WorkerAIMatcherTests(unittest.TestCase):
         user_prompt = called_args["messages"][1]["content"]
         self.assertIn("app-uuid-1", user_prompt)
         self.assertIn("前端开发工程师", user_prompt)
+        self.assertIn("email_event_type", user_prompt)
+        self.assertIn("reminder", user_prompt)
 
     @patch("httpx.get")
     @patch("httpx.patch")
     @patch("httpx.post")
     def test_upsert_uses_ai_matched_application_id(self, mock_post, mock_patch, mock_get):
-        # 1. Mock 检查 raw_email_id 不存在
-        resp_chk_email = Mock()
-        resp_chk_email.status_code = 200
+        # 1. Mock 检查新旧两张表中 raw_email_id 均不存在
+        resp_chk_notification = Mock(status_code=200)
+        resp_chk_notification.json.return_value = []
+        resp_chk_email = Mock(status_code=200)
         resp_chk_email.json.return_value = []
 
         # 2. Mock 检查 matched_app_id 存在
@@ -86,10 +91,9 @@ class WorkerAIMatcherTests(unittest.TestCase):
             "current_stage_name": "在线笔试"
         }]
 
-        # 3. Mock 查询当前 seq
-        resp_seq = Mock()
-        resp_seq.status_code = 200
-        resp_seq.json.return_value = [{"seq": 1}]
+        # 3. Mock 查询同阶段待审邮件为空
+        resp_pending = Mock(status_code=200)
+        resp_pending.json.return_value = []
 
         # 4. Mock 更新主表与插入子表
         resp_update = Mock()
@@ -98,7 +102,7 @@ class WorkerAIMatcherTests(unittest.TestCase):
         resp_stage = Mock()
         resp_stage.status_code = 201
 
-        mock_get.side_effect = [resp_chk_email, resp_chk_app, resp_seq]
+        mock_get.side_effect = [resp_chk_notification, resp_chk_email, resp_chk_app, resp_pending]
         mock_patch.return_value = resp_update
         mock_post.return_value = resp_stage
 
@@ -114,23 +118,88 @@ class WorkerAIMatcherTests(unittest.TestCase):
             "meeting_info": "https://zhaopin.meituan.com",
             "next_expectation": "等待一面结果",
             "notes": "",
+            "email_event_type": "new_stage",
+            "proposed_stage_status": "scheduled",
             "urgent": False
         }
 
         success = self.worker.upsert_recruitment_event(ai_data, "email-uid-888", "【美团】一面通知")
         self.assertTrue(success)
 
-        # 验证主表被更新
-        mock_patch.assert_called_once()
-        patch_payload = mock_patch.call_args[1]["json"]
-        self.assertEqual(patch_payload["current_stage_name"], "技术一面")
+        # 审核前不得提前覆盖主表当前阶段
+        mock_patch.assert_not_called()
 
-        # 验证没有调用创建新主表 post，而是直接插入了子表
+        # 验证没有创建真实阶段，只写入邮件事件表
         mock_post.assert_called_once()
-        inserted_stage = mock_post.call_args[1]["json"]
-        self.assertEqual(inserted_stage["application_id"], "app-uuid-99")
-        self.assertEqual(inserted_stage["seq"], 2)
-        self.assertEqual(inserted_stage["schedule_type"], "start")
+        self.assertIn("stage_notifications", mock_post.call_args[0][0])
+        inserted_notification = mock_post.call_args[1]["json"]
+        self.assertEqual(inserted_notification["application_id"], "app-uuid-99")
+        self.assertEqual(inserted_notification["event_type"], "new_stage")
+        self.assertEqual(inserted_notification["schedule_type"], "start")
+        self.assertNotIn("seq", inserted_notification)
+
+    @patch("httpx.get")
+    @patch("httpx.post")
+    def test_reminder_links_existing_stage_without_creating_round(self, mock_post, mock_get):
+        empty = Mock(status_code=200)
+        empty.json.return_value = []
+        app_response = Mock(status_code=200)
+        app_response.json.return_value = [{
+            "id": "app-1", "company": "招商银行", "position": "技术岗", "current_stage_name": "技术一面"
+        }]
+        target_response = Mock(status_code=200)
+        target_response.json.return_value = [{
+            "id": "stage-2", "seq": 2, "stage_name": "技术一面", "stage_status": "scheduled", "schedule_time": "2026-09-11 14:50"
+        }]
+        mock_get.side_effect = [empty, empty, app_response, empty, target_response]
+        mock_post.return_value = Mock(status_code=201)
+
+        success = self.worker.upsert_recruitment_event({
+            "matched_application_id": "app-1",
+            "company": "招商银行",
+            "position": "技术岗",
+            "stage_name": "技术一面",
+            "schedule_time": "2026-09-11 14:50",
+            "schedule_type": "start",
+            "email_event_type": "reminder",
+            "proposed_stage_status": "scheduled",
+        }, "uid-reminder", "技术一面提醒")
+
+        self.assertTrue(success)
+        payload = mock_post.call_args[1]["json"]
+        self.assertEqual(payload["event_type"], "reminder")
+        self.assertEqual(payload["stage_id"], "stage-2")
+        self.assertNotIn("seq", payload)
+
+    @patch("httpx.get")
+    @patch("httpx.post")
+    def test_second_pending_new_stage_is_downgraded_to_reminder(self, mock_post, mock_get):
+        empty = Mock(status_code=200)
+        empty.json.return_value = []
+        app_response = Mock(status_code=200)
+        app_response.json.return_value = [{
+            "id": "app-1", "company": "招商银行", "position": "技术岗", "current_stage_name": "待审核"
+        }]
+        pending_response = Mock(status_code=200)
+        pending_response.json.return_value = [{
+            "id": "notice-1", "event_type": "new_stage", "stage_id": None, "schedule_time": "2026-09-11 14:50"
+        }]
+        target_response = Mock(status_code=200)
+        target_response.json.return_value = []
+        mock_get.side_effect = [empty, empty, app_response, pending_response, target_response]
+        mock_post.return_value = Mock(status_code=201)
+
+        success = self.worker.upsert_recruitment_event({
+            "matched_application_id": "app-1",
+            "company": "招商银行",
+            "position": "技术岗",
+            "stage_name": "技术一面",
+            "schedule_time": "2026-09-11 14:50",
+            "email_event_type": "new_stage",
+        }, "uid-second", "技术一面再次提醒")
+
+        self.assertTrue(success)
+        self.assertEqual(mock_post.call_args[1]["json"]["event_type"], "reminder")
 
 
 if __name__ == "__main__":

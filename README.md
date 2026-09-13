@@ -205,7 +205,7 @@ CREATE POLICY "Allow public all job opportunities" ON job_opportunities FOR ALL 
 CREATE POLICY "Allow public read sync_state" ON sync_state FOR ALL USING (true) WITH CHECK (true);
 ```
 
-> 已经部署过 OfferPilot 的用户不需要重新建库或删除数据。只需在 Supabase SQL Editor 中执行 [`supabase/job_opportunities.sql`](supabase/job_opportunities.sql)，即可增量增加招聘要求表、索引、RLS 策略与 Realtime 配置。
+> 已经部署过 OfferPilot 的用户不需要重新建库或删除数据。请在 Supabase SQL Editor 中按需执行 [`supabase/job_opportunities.sql`](supabase/job_opportunities.sql)；v3.5.3 起还需执行 [`supabase/stage_notifications.sql`](supabase/stage_notifications.sql)，用于区分新阶段、提醒、改期、结果和取消邮件。完整上线顺序见 [`docs/email-event-migration-v3.5.3.md`](docs/email-event-migration-v3.5.3.md)。
 
 * 进入项目 **Project Settings ➡️ API**，复制以下 3 个核心凭证：
   * **Project URL**（如 `https://xxxx.supabase.co`）
