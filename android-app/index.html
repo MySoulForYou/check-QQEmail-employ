@@ -18,13 +18,12 @@
         <header class="daily-home-header">
           <div class="daily-home-meta">
             <span class="daily-wordmark">OfferPilot</span>
-            <span class="daily-current-date" id="daily-current-date">今天</span>
             <button class="daily-profile-button" type="button" onclick="window.switchToTab('view-settings')" aria-label="打开个人设置">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.8-3.7 3.1-5.5 7-5.5s6.2 1.8 7 5.5"/></svg>
             </button>
           </div>
-          <h1>今天，稳稳推进</h1>
-          <p id="daily-summary-text">正在整理今天的求职安排…</p>
+          <h1 id="daily-greeting-title">今日概览</h1>
+          <p><span class="daily-current-date" id="daily-current-date">今天</span><span class="daily-summary-separator">·</span><span id="daily-summary-text">正在整理求职安排…</span></p>
           <div class="daily-week-strip" id="daily-week-strip"></div>
         </header>
 
@@ -318,16 +317,14 @@
 
         <div class="settings-content-body">
           <div class="profile-overview-card">
-            <div class="profile-overview-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h3"/></svg>
-            </div>
             <div class="profile-overview-copy">
-              <strong>我的求职档案</strong>
-              <span>所有进展均与 Supabase 实时同步</span>
+              <strong>求职数据</strong>
+              <span>仅统计已审核准入的真实申请</span>
             </div>
             <div class="profile-overview-stats">
-              <span><b id="profile-application-count">0</b><small>申请</small></span>
-              <span><b id="profile-stage-count">0</b><small>环节</small></span>
+              <span><b id="profile-application-count">0</b><small>已建档</small></span>
+              <span><b id="profile-active-count">0</b><small>待办</small></span>
+              <span><b id="profile-waiting-count">0</b><small>待反馈</small></span>
             </div>
           </div>
 

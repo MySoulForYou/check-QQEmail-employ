@@ -1643,36 +1643,22 @@ body {
 }
 
 .profile-overview-card {
-  padding: 16px;
-  border: 1px solid rgba(237, 188, 169, .55);
+  padding: 18px;
+  border: 1px solid var(--border-porcelain);
   border-radius: 24px;
-  background: linear-gradient(135deg, #FFF6F0 0%, #FFFDFC 72%);
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 10px 26px rgba(160, 90, 62, .07);
+  background: #fff;
+  box-shadow: var(--shadow-porcelain);
 }
 
-.profile-overview-icon {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 15px;
-  background: var(--accent-coral-soft);
-  color: #B9573E;
-}
-
-.profile-overview-icon svg { width: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .profile-overview-copy { min-width: 0; }
 .profile-overview-copy strong, .profile-overview-copy span { display: block; }
-.profile-overview-copy strong { font-size: .92rem; font-weight: 850; }
+.profile-overview-copy strong { font-size: 1rem; font-weight: 850; }
 .profile-overview-copy span { margin-top: 4px; font-size: .66rem; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.profile-overview-stats { display: flex; gap: 12px; }
-.profile-overview-stats span { min-width: 30px; text-align: center; }
+.profile-overview-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; padding: 12px 0; border-radius: 16px; background: #FFF6F0; }
+.profile-overview-stats span { min-width: 0; text-align: center; }
+.profile-overview-stats span + span { border-left: 1px solid rgba(226, 192, 179, .55); }
 .profile-overview-stats b, .profile-overview-stats small { display: block; }
-.profile-overview-stats b { font-size: 1.05rem; color: var(--text-main); }
+.profile-overview-stats b { font-size: 1.2rem; color: var(--text-main); }
 .profile-overview-stats small { margin-top: 2px; font-size: .6rem; color: var(--text-sub); }
 
 .settings-card {
@@ -2095,7 +2081,7 @@ input:checked + .slider-toggle:before {
 
 .daily-home-meta {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
   min-height: 44px;
 }
@@ -2136,26 +2122,28 @@ input:checked + .slider-toggle:before {
 }
 
 .daily-home-header h1 {
-  margin-top: 22px;
-  font-size: clamp(2rem, 9.8vw, 2.72rem);
-  line-height: 1.08;
-  letter-spacing: -1.7px;
+  margin-top: 17px;
+  font-size: clamp(1.72rem, 7.5vw, 2.08rem);
+  line-height: 1.12;
+  letter-spacing: -1.1px;
   font-weight: 900;
   color: var(--text-main);
 }
 
 .daily-home-header > p {
-  margin-top: 8px;
-  font-size: 1rem;
+  margin-top: 7px;
+  font-size: .82rem;
   font-weight: 600;
   color: var(--text-sub);
 }
+
+.daily-summary-separator { margin: 0 6px; color: var(--text-muted); }
 
 .daily-week-strip {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
-  margin-top: 25px;
+  margin-top: 20px;
 }
 
 .daily-week-day {
@@ -2210,21 +2198,11 @@ input:checked + .slider-toggle:before {
 }
 
 .daily-timeline { position: relative; }
-.daily-timeline::before {
-  content: '';
-  position: absolute;
-  top: 27px;
-  bottom: 34px;
-  left: 7px;
-  width: 1.5px;
-  background: rgba(84, 134, 110, .26);
-}
 
 .daily-timeline-item {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
+  display: block;
   position: relative;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
 }
 
 .daily-timeline-time {
@@ -2257,7 +2235,7 @@ input:checked + .slider-toggle:before {
 .daily-action-card {
   width: 100%;
   min-width: 0;
-  padding: 17px;
+  padding: 16px;
   border: 1px solid var(--border-porcelain);
   border-radius: 23px;
   background: rgba(255,255,255,.96);
@@ -2267,22 +2245,21 @@ input:checked + .slider-toggle:before {
 }
 
 .daily-timeline-item.is-primary .daily-action-card {
-  border-color: rgba(238, 119, 87, .42);
-  background:
-    radial-gradient(circle at 86% 18%, rgba(255,255,255,.16), transparent 25%),
-    linear-gradient(135deg, #F39A69 0%, #EE785B 58%, #E96763 100%);
-  color: #fff;
-  box-shadow: 0 15px 30px rgba(220, 104, 77, .2);
+  border-color: rgba(238, 119, 87, .3);
+  border-top: 4px solid #F18466;
+  background: linear-gradient(135deg, #FFF8F4 0%, #FFF 68%);
+  color: var(--text-main);
+  box-shadow: 0 12px 26px rgba(166, 89, 63, .1);
 }
 
 .daily-timeline-item.is-primary .daily-card-head em {
-  background: rgba(255, 244, 236, .78);
+  background: var(--accent-coral-soft);
   color: #5E2D21;
 }
 
-.daily-timeline-item.is-primary .daily-action-card > small { color: rgba(255,255,255,.82); }
+.daily-timeline-item.is-primary .daily-action-card > small { color: var(--text-sub); }
 .daily-timeline-item.is-primary button.daily-primary-action { background: #33221C; }
-.daily-timeline-item.is-primary .daily-done-action { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.18); color: #fff; }
+.daily-timeline-item.is-primary .daily-done-action { border-color: rgba(231, 194, 180, .72); background: #FFF7F2; color: #B9573E; }
 
 button.daily-action-card { appearance: none; font: inherit; }
 
@@ -2292,6 +2269,18 @@ button.daily-action-card { appearance: none; font: inherit; }
   justify-content: space-between;
   gap: 10px;
 }
+
+.daily-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.daily-card-meta b { color: #B9573E; font-size: .72rem; font-weight: 850; }
+.daily-card-meta em { padding: 5px 9px; border-radius: 999px; background: var(--accent-coral-soft); color: #7A3A2B; font-size: .66rem; font-weight: 800; font-style: normal; }
+.daily-card-title { display: block; font-size: 1rem; line-height: 1.35; font-weight: 850; }
 
 .daily-card-head strong {
   min-width: 0;
@@ -2523,7 +2512,6 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
 
 @media (max-width: 360px) {
   .daily-home-header, .daily-home-content { padding-left: 16px; padding-right: 16px; }
-  .daily-timeline-item { grid-template-columns: 45px minmax(0, 1fr); }
   .daily-action-card { padding: 15px; }
   .daily-card-head strong { font-size: .9rem; }
   .daily-reminder-pill { display: none; }

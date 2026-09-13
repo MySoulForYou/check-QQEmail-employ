@@ -432,18 +432,32 @@ function renderDailyHome() {
   const now = new Date();
   const todayKey = formatCalendarKey(now);
   const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  if (dateLabel) dateLabel.textContent = `${now.getMonth() + 1}月${now.getDate()}日 · ${weekDays[now.getDay()]}`;
+  if (dateLabel) dateLabel.textContent = `${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
+  const greetingTitle = document.getElementById('daily-greeting-title');
+  if (greetingTitle) greetingTitle.textContent = now.getHours() < 11 ? '早上好' : now.getHours() < 18 ? '下午好' : '晚上好';
 
   const profileApplicationCount = document.getElementById('profile-application-count');
-  const profileStageCount = document.getElementById('profile-stage-count');
-  if (profileApplicationCount) profileApplicationCount.textContent = state.applications.length;
-  if (profileStageCount) profileStageCount.textContent = state.stages.filter(stage => !['pending', 'ignored'].includes(stage.stage_status)).length;
+  const profileActiveCount = document.getElementById('profile-active-count');
+  const profileWaitingCount = document.getElementById('profile-waiting-count');
+  const profiledApps = state.applications.map(app => {
+    const validStages = state.stages.filter(stage => stage.application_id === app.id && !['pending', 'ignored'].includes(stage.stage_status));
+    const latest = getLatestStageContext(validStages).representative;
+    return validStages.length ? { app, latest } : null;
+  }).filter(Boolean);
+  if (profileApplicationCount) profileApplicationCount.textContent = profiledApps.length;
+  if (profileActiveCount) profileActiveCount.textContent = profiledApps.filter(({ latest }) => latest?.stage_status === 'scheduled').length;
+  if (profileWaitingCount) profileWaitingCount.textContent = profiledApps.filter(({ latest }) => latest?.stage_status === 'awaiting_result').length;
 
   const entries = getCalendarEntries();
   const scheduledEntries = entries.filter(item => item.stage?.stage_status === 'scheduled');
   const todayItems = scheduledEntries.filter(item => item.key === todayKey);
   const pendingCount = state.stages.filter(stage => stage.stage_status === 'pending').length;
-  if (summary) summary.textContent = `${todayItems.length} 项安排 · ${pendingCount} 项待处理`;
+  if (summary) {
+    const parts = [];
+    parts.push(todayItems.length ? `${todayItems.length} 项日程` : '今天暂无日程');
+    if (pendingCount) parts.push(`${pendingCount} 封邮件待确认`);
+    summary.textContent = parts.join(' · ');
+  }
 
   weekStrip.innerHTML = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2 + index);
@@ -467,6 +481,8 @@ function renderDailyHome() {
   } else {
     const nextUpcoming = scheduledEntries.find(item => item.date >= now);
     const visibleItems = todayItems.length ? todayItems : (nextUpcoming ? [nextUpcoming] : []);
+    const todayTitle = document.getElementById('daily-today-title');
+    if (todayTitle) todayTitle.textContent = todayItems.length || !nextUpcoming ? '今天' : '下一项';
     timeline.innerHTML = visibleItems.length ? visibleItems.map((item, index) => buildDailyTimelineItem(item, index === 0, item.key !== todayKey)).join('') : `
       <div class="daily-empty-card">
         <span>✓</span>
@@ -504,9 +520,9 @@ function buildDailyTimelineItem(item, isPrimary, isUpcoming) {
     const time = `${String(item.date.getHours()).padStart(2, '0')}:${String(item.date.getMinutes()).padStart(2, '0')}`;
     return `
       <article class="daily-timeline-item ${isPrimary ? 'is-primary' : ''}">
-        <div class="daily-timeline-time"><strong>${time}</strong><i></i></div>
         <button type="button" class="daily-action-card" onclick="window.openRecruitmentEvent('${item.event.id}')">
-          <span class="daily-card-head"><strong>${escapeHtml(item.event.title || '招聘会')}</strong><em>招聘会</em></span>
+          <span class="daily-card-meta"><b>${time}</b><em>招聘会</em></span>
+          <strong class="daily-card-title">${escapeHtml(item.event.title || '招聘会')}</strong>
           <small>${escapeHtml(item.event.location || '地点待确认')}</small>
           <span class="daily-primary-action">查看活动</span>
         </button>
@@ -518,16 +534,25 @@ function buildDailyTimelineItem(item, isPrimary, isUpcoming) {
   const datePrefix = isUpcoming ? `${date.getMonth() + 1}月${date.getDate()}日 · ` : '';
   return `
     <article class="daily-timeline-item ${isPrimary ? 'is-primary' : ''}">
-      <div class="daily-timeline-time"><strong>${datePrefix}${time}</strong><i></i></div>
       <div class="daily-action-card" onclick="window.viewCompanyTimeline('${app.id}')">
-        <span class="daily-card-head"><strong>${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong><em>${typeLabel}</em></span>
-        <small>${escapeHtml(stage.meeting_info || (getScheduleType(stage) === 'deadline' ? '请在截止前完成并提交' : '打开档案查看会议与准备信息'))}</small>
+        <span class="daily-card-meta"><b>${datePrefix}${time}</b><em>${typeLabel}</em></span>
+        <strong class="daily-card-title">${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong>
+        <small>${escapeHtml(formatDailyMeetingSummary(stage))}</small>
         <div class="daily-card-actions" onclick="event.stopPropagation()">
           <button type="button" class="daily-primary-action" onclick="window.viewCompanyTimeline('${app.id}')">${getScheduleType(stage) === 'deadline' ? '查看任务' : '开始准备'}</button>
           <button type="button" class="daily-done-action" onclick="window.markStageComplete('${stage.id}')" aria-label="标记为已完成">✓</button>
         </div>
       </div>
     </article>`;
+}
+
+function formatDailyMeetingSummary(stage) {
+  const meeting = String(stage?.meeting_info || '').trim();
+  if (meeting) {
+    if (/https?:\/\//i.test(meeting)) return '线上会议 · 打开档案查看链接';
+    return meeting.length > 28 ? `${meeting.slice(0, 27)}…` : meeting;
+  }
+  return getScheduleType(stage) === 'deadline' ? '请在截止前完成并提交' : '打开档案查看会议与准备信息';
 }
 
 window.openDailyDate = function(key) {

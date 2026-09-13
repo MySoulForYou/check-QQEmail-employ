@@ -37,4 +37,6 @@ test('mobile cards omit company avatars and profile uses one fixed visual system
   assert.doesNotMatch(html, /视觉主题与风格切换|theme-card-creamy|theme-card-classic/);
   assert.doesNotMatch(app, /switchAppTheme|offerpilot_theme|initTheme/);
   assert.match(html, /class="profile-overview-card"/);
+  assert.match(html, /仅统计已审核准入的真实申请/);
+  assert.match(app, /const profiledApps = state\.applications\.map/);
 });
