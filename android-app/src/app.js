@@ -349,6 +349,14 @@ function getLatestStageContext(stages) {
   return { latestStages, representative, status };
 }
 
+function buildVisibleStageSequenceMap(stages) {
+  const visibleSeqs = [...new Set((stages || [])
+    .filter(stage => !['pending', 'ignored'].includes(stage.stage_status))
+    .map(stage => stage.seq || 1))]
+    .sort((a, b) => a - b);
+  return new Map(visibleSeqs.map((seq, index) => [seq, index + 1]));
+}
+
 function getScheduleType(stage) {
   const explicit = String(stage?.schedule_type || '').toLowerCase();
   if (explicit === 'start' || explicit === 'deadline') return explicit;
@@ -1131,7 +1139,7 @@ function renderTimelineView(appId) {
     .sort((a, b) => (b.seq || 1) - (a.seq || 1));
   const latestStage = appStages[0];
   const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
-  const latestStages = appStages.filter(stage => (stage.seq || 1) === latestSeq);
+  const displaySeqByStoredSeq = buildVisibleStageSequenceMap(appStages);
 
   document.getElementById('timeline-company-name').textContent = targetApp.company;
   document.getElementById('timeline-position-name').textContent = targetApp.position || '校招工程师';
@@ -1169,7 +1177,8 @@ function renderTimelineView(appId) {
 
   nodesContainer.innerHTML = appStages.map((stg, idx) => {
     const isLatestPosition = (stg.seq || 1) === latestSeq;
-    const isParallel = latestStages.length > 1 && isLatestPosition;
+    const isParallel = appStages.filter(stage => (stage.seq || 1) === (stg.seq || 1)).length > 1;
+    const displaySeq = displaySeqByStoredSeq.get(stg.seq || 1) || (appStages.length - idx);
     const isLatestActive = isLatestPosition && stg.stage_status === 'scheduled';
     const isAwaiting = stg.stage_status === 'awaiting_result';
     const isOffered = stg.stage_status === 'offered';
@@ -1200,7 +1209,7 @@ function renderTimelineView(appId) {
         <!-- 气泡对话框白瓷卡片 -->
         <div class="bubble-porcelain-card ${isLatestActive ? 'card-active-luminous' : ''}" onclick="window.openEditModalForCurrent('${stg.id}')">
           <div class="bubble-top-row">
-            <span class="bubble-seq-text">Stage ${stg.seq || (appStages.length - idx)}${isParallel ? ' · 并列' : ''}</span>
+            <span class="bubble-seq-text">Stage ${displaySeq}${isParallel ? ' · 并列' : ''}</span>
             <span class="bubble-status-badge ${badgeClass}">${badgeText}</span>
           </div>
 
@@ -1358,9 +1367,11 @@ window.openEditModalForCurrent = function(targetStageId) {
       if (!groups.has(seq)) groups.set(seq, []);
       groups.get(seq).push(stage.stage_name || '环节');
     });
-    positionSelect.innerHTML = `<option value="${targetStage.seq || 1}">保持当前位置（第${targetStage.seq || 1}轮）</option>`
+    const displaySeqByStoredSeq = buildVisibleStageSequenceMap([targetStage, ...siblings]);
+    const targetDisplaySeq = displaySeqByStoredSeq.get(targetStage.seq || 1) || 1;
+    positionSelect.innerHTML = `<option value="${targetStage.seq || 1}">保持当前位置（第${targetDisplaySeq}轮）</option>`
       + [...groups.entries()].filter(([seq]) => seq !== (targetStage.seq || 1)).map(([seq, names]) =>
-        `<option value="${seq}">与「${escapeHtml(names.join(' / '))}」并列</option>`
+        `<option value="${seq}">与第${displaySeqByStoredSeq.get(seq) || 1}轮「${escapeHtml(names.join(' / '))}」并列</option>`
       ).join('');
   }
 

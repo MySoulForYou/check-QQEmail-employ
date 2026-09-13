@@ -240,8 +240,8 @@ class SupabaseMobileService {
       appId = createdApp[0].id;
     }
 
-    // 查询当前最大 seq；并列环节复用同一 seq，但仍是独立记录。
-    const stagesRes = await fetch(`${this.url}/rest/v1/application_stages?application_id=eq.${appId}&select=seq&order=seq.desc&limit=1`, { headers });
+    // 只用已准入的可见环节确定当前轮次；待审/已忽略邮件不占用求职轮次。
+    const stagesRes = await fetch(`${this.url}/rest/v1/application_stages?application_id=eq.${appId}&stage_status=not.in.(pending,ignored)&select=seq&order=seq.desc&limit=1`, { headers });
     let maxSeq = 0;
     if (stagesRes.ok) {
       const s = await stagesRes.json();

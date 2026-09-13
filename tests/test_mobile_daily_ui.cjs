@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'android-app/index.html'), 'utf8');
@@ -39,4 +40,21 @@ test('mobile cards omit company avatars and profile uses one fixed visual system
   assert.match(html, /class="profile-overview-card"/);
   assert.match(html, /仅统计已审核准入的真实申请/);
   assert.match(app, /const profiledApps = state\.applications\.map/);
+});
+
+test('mobile timeline numbers visible rounds continuously while preserving parallel groups', () => {
+  const start = app.indexOf('function buildVisibleStageSequenceMap(stages)');
+  const end = app.indexOf('\nfunction getScheduleType(', start);
+  const context = {};
+  vm.runInNewContext(`${app.slice(start, end)}; this.buildMap = buildVisibleStageSequenceMap;`, context);
+
+  const map = context.buildMap([
+    { seq: 1, stage_status: 'passed' },
+    { seq: 2, stage_status: 'ignored' },
+    { seq: 3, stage_status: 'awaiting_result' },
+    { seq: 3, stage_status: 'scheduled' },
+  ]);
+  assert.equal(map.get(1), 1);
+  assert.equal(map.has(2), false);
+  assert.equal(map.get(3), 2);
 });

@@ -56,3 +56,30 @@ test('mobile recruitment event writes calendar and focus choices together', asyn
     assert.equal(request.options.method, 'POST');
     assert.deepEqual(JSON.parse(request.options.body), { title: '招聘会', is_focused: true, in_calendar: true });
 });
+
+test('mobile stage creation ignores pending and ignored rows when choosing the next round', async () => {
+    let sequenceQuery = '';
+    let insertedStage = null;
+    const service = createService(async (url, options = {}) => {
+        if (url.includes('/applications?company=')) {
+            return { ok: true, json: async () => [{ id: 'app-1', current_stage_name: '邮箱验证' }] };
+        }
+        if (url.includes('/application_stages?application_id=')) {
+            sequenceQuery = url;
+            return { ok: true, json: async () => [{ seq: 1 }] };
+        }
+        if (url.endsWith('/application_stages') && options.method === 'POST') {
+            insertedStage = JSON.parse(options.body);
+            return { ok: true, json: async () => [insertedStage] };
+        }
+        return { ok: true, json: async () => [{ id: 'app-1' }] };
+    });
+
+    await service.createApplicationWithStage(
+        { company: '示例公司', position: '产品经理' },
+        { stage_name: '技术一面', stage_status: 'scheduled' }
+    );
+
+    assert.match(sequenceQuery, /stage_status=not\.in\.\(pending,ignored\)/);
+    assert.equal(insertedStage.seq, 2);
+});

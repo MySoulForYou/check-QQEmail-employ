@@ -2842,7 +2842,8 @@ async function approveStageNotification(notificationId, options = {}) {
 
         // 只有新阶段，或找不到可关联阶段的异常旧数据，才创建 application_stages。
         if (eventType === 'new_stage' || !targetStage) {
-            const existingStages = appStagesMap[notification.application_id] || [];
+            const existingStages = (appStagesMap[notification.application_id] || [])
+                .filter(stage => stage.stage_status !== 'ignored' && stage.stage_status !== 'pending');
             const nextSeq = existingStages.length
                 ? Math.max(...existingStages.map(stage => stage.seq || 1)) + 1
                 : 1;
@@ -2896,7 +2897,8 @@ async function approveStageNotification(notificationId, options = {}) {
         if (notificationError) throw notificationError;
         Object.assign(notification, { stage_id: targetStage.id, review_status: 'approved', reviewed_at: now, updated_at: now });
 
-        const currentStages = (appStagesMap[notification.application_id] || []).filter(stage => stage.stage_status !== 'ignored');
+        const currentStages = (appStagesMap[notification.application_id] || [])
+            .filter(stage => stage.stage_status !== 'ignored' && stage.stage_status !== 'pending');
         const maxSeq = currentStages.length ? Math.max(...currentStages.map(stage => stage.seq || 1)) : (targetStage.seq || 1);
         if ((targetStage.seq || 1) === maxSeq) {
             const appUpdate = {
@@ -3266,7 +3268,8 @@ async function submitManualStage() {
 
         if (targetApp) {
             // 已有企业：计算下一轮 seq
-            const existingStages = (appStagesMap[targetApp.id] || []).filter(s => s.stage_status !== 'ignored');
+            const existingStages = (appStagesMap[targetApp.id] || [])
+                .filter(stage => stage.stage_status !== 'ignored' && stage.stage_status !== 'pending');
             const maxSeq = existingStages.length > 0 ? Math.max(...existingStages.map(s => s.seq || 1)) : 0;
             nextSeq = positionMode === 'parallel' && maxSeq > 0 ? maxSeq : maxSeq + 1;
             const currentGroupNames = existingStages
@@ -3426,7 +3429,7 @@ function openEditStageModal(stageId) {
     const positionSelect = document.getElementById('edit-stage-position');
     if (positionSelect) {
         const siblings = (appStagesMap[stage.application_id] || [])
-            .filter(item => item.id !== stage.id && item.stage_status !== 'ignored')
+            .filter(item => item.id !== stage.id && item.stage_status !== 'ignored' && item.stage_status !== 'pending')
             .sort((a, b) => (a.seq || 1) - (b.seq || 1));
         const grouped = new Map();
         siblings.forEach(item => {
@@ -3536,7 +3539,8 @@ async function submitEditStage() {
             stageDbStatus = 'ignored';
         }
 
-        const existingForApp = (appStagesMap[appId] || []).filter(stage => stage.stage_status !== 'ignored');
+        const existingForApp = (appStagesMap[appId] || [])
+            .filter(stage => stage.stage_status !== 'ignored' && stage.stage_status !== 'pending');
         const hypothetical = existingForApp.map(stage => stage.id === stageId
             ? { ...stage, seq: targetSeq, stage_name: stageName }
             : stage);
