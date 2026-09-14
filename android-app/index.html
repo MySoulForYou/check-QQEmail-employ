@@ -299,124 +299,125 @@
       <!-- ================= 视图 D: 个人设置与云端中枢 (Settings) ================= -->
       <section id="view-settings" class="tab-view">
         <header class="app-topbar profile-topbar">
-          <span class="profile-eyebrow">OfferPilot</span>
-          <h1 class="page-large-title">我的</h1>
-          <p class="profile-subtitle">管理求职数据、提醒与云端连接</p>
+          <div class="profile-heading-row">
+            <div>
+              <span class="profile-eyebrow">个人中心</span>
+              <h1 class="page-large-title">我的</h1>
+            </div>
+            <span class="profile-sync-badge">
+              <span class="pulse-indicator-dot" id="profile-connection-dot"></span>
+              <span id="profile-connection-label">检查同步状态</span>
+            </span>
+          </div>
+          <p class="profile-subtitle">求职进度与偏好设置</p>
         </header>
 
         <div class="settings-content-body">
           <div class="profile-overview-card">
             <div class="profile-overview-copy">
-              <strong>求职数据</strong>
-              <span>仅统计已审核准入的真实申请</span>
+              <span>求职概览</span>
+              <strong>所有进度，集中掌握</strong>
             </div>
             <div class="profile-overview-stats">
               <span><b id="profile-application-count">0</b><small>已建档</small></span>
               <span><b id="profile-active-count">0</b><small>待办</small></span>
               <span><b id="profile-waiting-count">0</b><small>待反馈</small></span>
             </div>
+            <p class="profile-overview-note">仅统计已审核准入的真实申请</p>
           </div>
 
-          <div class="settings-card settings-shortcuts-card">
-            <div class="card-section-header">
-              <span class="section-icon">⌘</span>
-              <div class="section-title-group">
-                <h3>功能入口</h3>
-                <p>低频功能集中在这里，首页保持专注</p>
-              </div>
-            </div>
-            <div class="settings-shortcuts-grid">
-              <button type="button" onclick="window.switchToTab('view-review')"><span>邮件审核</span><small id="settings-review-count">查看 AI 待审结果</small></button>
-              <button type="button" onclick="window.switchToTab('view-events')"><span>招聘会</span><small>管理宣讲与线下活动</small></button>
-            </div>
-          </div>
-          <!-- 数据库连接卡片 -->
-          <div class="settings-card">
-            <div class="card-section-header">
-              <span class="section-icon">⚡️</span>
-              <div class="section-title-group">
-                <h3>Supabase 云数据库连接</h3>
-                <p>多端 7x24h 实时同步与 DeepSeek 邮件云端存储</p>
-              </div>
-            </div>
-
-            <div class="form-group-mobile">
-              <label>Project URL (数据库公网 HTTPS 地址)</label>
-              <input type="text" id="cfg-supabase-url" placeholder="https://xxxxxxxx.supabase.co" spellcheck="false" autocomplete="off">
-            </div>
-
-            <div class="form-group-mobile">
-              <label>Anon Public Key (客户端公开公钥)</label>
-              <input type="password" id="cfg-supabase-key" placeholder="sb_publishable_..." spellcheck="false" autocomplete="off">
-            </div>
-
-            <div id="cfg-test-status" class="config-feedback-box"></div>
-
-            <div class="settings-actions-row">
-              <button class="btn-secondary-mobile" id="btn-test-connection" onclick="window.testSupabaseConnection()">⚡️ 测试连通性</button>
-              <button class="btn-primary-mobile" id="btn-save-connection" onclick="window.saveSupabaseConfig()">💾 保存并生效</button>
-            </div>
-            <div style="margin-top: 12px; text-align: center;">
-              <button class="btn-secondary-mobile" style="color: var(--accent-rose); border-color: rgba(225, 29, 72, 0.2); width: 100%; font-size: 0.8rem;" onclick="window.clearSupabaseConfig()">🗑️ 安全退出 / 清除本机保存的凭据</button>
+          <div class="settings-section">
+            <h2 class="settings-section-label">工作台</h2>
+            <div class="settings-list">
+              <button class="setting-list-row" type="button" onclick="window.switchToTab('view-review')">
+                <span class="setting-row-icon setting-row-icon-coral" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h7"/></svg>
+                </span>
+                <span class="setting-row-copy"><strong>邮件审核</strong><small id="settings-review-count">查看 AI 待审结果</small></span>
+                <svg class="setting-row-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>
+              </button>
+              <button class="setting-list-row" type="button" onclick="window.switchToTab('view-events')">
+                <span class="setting-row-icon setting-row-icon-gold" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 7h14v12H5zM8 4v6M16 4v6M5 11h14M9 15h2M14 15h2"/></svg>
+                </span>
+                <span class="setting-row-copy"><strong>招聘会</strong><small>管理宣讲与线下活动</small></span>
+                <svg class="setting-row-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>
+              </button>
             </div>
           </div>
 
-          <!-- 系统状态与 Realtime 遥测 -->
-          <div class="settings-card">
-            <div class="card-section-header">
-              <span class="section-icon">📡</span>
-              <div class="section-title-group">
-                <h3>实时同步遥测 (Realtime)</h3>
-                <p>WebSocket 毫秒级双向长连接</p>
+          <div class="settings-section">
+            <h2 class="settings-section-label">提醒与反馈</h2>
+            <div class="settings-list">
+              <div class="setting-list-row">
+                <span class="setting-row-icon setting-row-icon-sage" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 4a6 6 0 0 0-6 6v4l-2 3h16l-2-3v-4a6 6 0 0 0-6-6ZM10 20h4"/></svg>
+                </span>
+                <span class="setting-row-copy"><strong>日程提醒</strong><small>临期前 1 小时及 15 分钟通知</small></span>
+                <label class="switch-control" aria-label="启用本地日程提醒">
+                  <input type="checkbox" id="chk-notifications-enabled" checked>
+                  <span class="slider-toggle"></span>
+                </label>
               </div>
-            </div>
-
-            <div class="telemetry-item-row">
-              <span class="telemetry-label">通道连接状态</span>
-              <span class="telemetry-value-tag" id="telemetry-status-tag">
-                <span class="pulse-indicator-dot" id="realtime-dot"></span>
-                <span id="realtime-text">正在连接...</span>
-              </span>
-            </div>
-
-            <div class="telemetry-item-row">
-              <span class="telemetry-label">本地数据缓存</span>
-              <span class="telemetry-value-tag" id="telemetry-cache-count">已缓存 0 项</span>
-            </div>
-
-            <div class="telemetry-item-row">
-              <span class="telemetry-label">客户端版本</span>
-              <span class="telemetry-value-tag">v3.5.2 (Android Native)</span>
+              <div class="setting-list-row">
+                <span class="setting-row-icon setting-row-icon-stone" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M8 9v6M12 7v10M16 9v6M5 12h14"/></svg>
+                </span>
+                <span class="setting-row-copy"><strong>触感反馈</strong><small>重要操作提供轻微震动</small></span>
+                <label class="switch-control" aria-label="启用触感反馈">
+                  <input type="checkbox" id="chk-haptic-feedback" checked>
+                  <span class="slider-toggle"></span>
+                </label>
+              </div>
             </div>
           </div>
 
-          <!-- 触感反馈与通知 -->
-          <div class="settings-card">
-            <div class="card-section-header">
-              <span class="section-icon">📳</span>
-              <div class="section-title-group">
-                <h3>交互与提醒设置</h3>
-                <p>触感微震动与系统本地日程提醒</p>
+          <div class="settings-section">
+            <h2 class="settings-section-label">数据与同步</h2>
+            <div class="settings-list">
+              <div class="setting-list-row setting-status-row">
+                <span class="setting-row-icon setting-row-icon-sage" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M7 8a7 7 0 0 1 11 2l2 2M17 16A7 7 0 0 1 6 14l-2-2M20 7v5h-5M4 17v-5h5"/></svg>
+                </span>
+                <span class="setting-row-copy"><strong>实时同步</strong><small id="realtime-text">正在检查连接状态…</small></span>
+                <span class="status-dot-wrap" id="telemetry-status-tag"><span class="pulse-indicator-dot" id="realtime-dot"></span></span>
               </div>
-            </div>
 
-            <div class="toggle-row">
-              <span>启用 Haptic 触感微震动</span>
-              <label class="switch-control">
-                <input type="checkbox" id="chk-haptic-feedback" checked>
-                <span class="slider-toggle"></span>
-              </label>
-            </div>
+              <details class="settings-disclosure" id="cloud-config-disclosure">
+                <summary class="setting-list-row">
+                  <span class="setting-row-icon setting-row-icon-coral" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 17h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 10a3.5 3.5 0 0 0 1 7ZM12 11v8M9 16l3 3 3-3"/></svg>
+                  </span>
+                  <span class="setting-row-copy"><strong>云端连接</strong><small id="cloud-config-summary">查看或更改 Supabase 配置</small></span>
+                  <svg class="setting-row-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>
+                </summary>
+                <div class="settings-disclosure-panel">
+                  <p class="config-help-text">高级设置 · 仅在首次连接或更换数据库时需要修改</p>
+                  <div class="form-group-mobile">
+                    <label for="cfg-supabase-url">Project URL</label>
+                    <input type="text" id="cfg-supabase-url" placeholder="https://xxxxxxxx.supabase.co" spellcheck="false" autocomplete="off">
+                  </div>
+                  <div class="form-group-mobile">
+                    <label for="cfg-supabase-key">Anon Public Key</label>
+                    <input type="password" id="cfg-supabase-key" placeholder="sb_publishable_..." spellcheck="false" autocomplete="off">
+                  </div>
+                  <div id="cfg-test-status" class="config-feedback-box"></div>
+                  <div class="settings-actions-row">
+                    <button class="btn-secondary-mobile" id="btn-test-connection" onclick="window.testSupabaseConnection()">测试连接</button>
+                    <button class="btn-primary-mobile" id="btn-save-connection" onclick="window.saveSupabaseConfig()">保存并生效</button>
+                  </div>
+                  <button class="btn-clear-connection" type="button" onclick="window.clearSupabaseConfig()">清除本机连接信息</button>
+                </div>
+              </details>
 
-            <div class="toggle-row" style="margin-top: 14px; border-top: 1px dashed var(--border-porcelain); padding-top: 12px;">
-              <div>
-                <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">本地日程临期提醒推送</div>
-                <div style="font-size: 0.76rem; color: var(--text-sub); margin-top: 2px;">测评/笔试/面试提前 1小时及15分钟推送提醒</div>
+              <div class="setting-list-row setting-meta-row">
+                <span class="setting-row-copy"><strong>本地缓存</strong><small>离线时保留最近数据</small></span>
+                <span class="setting-row-value" id="telemetry-cache-count">已缓存 0 项</span>
               </div>
-              <label class="switch-control">
-                <input type="checkbox" id="chk-notifications-enabled" checked>
-                <span class="slider-toggle"></span>
-              </label>
+              <div class="setting-list-row setting-meta-row">
+                <span class="setting-row-copy"><strong>版本</strong><small>OfferPilot 移动端</small></span>
+                <span class="setting-row-value">v3.5.2</span>
+              </div>
             </div>
           </div>
         </div>

@@ -1598,8 +1598,14 @@ function initSettings() {
   const cfg = supabaseService.getConfig();
   const urlInput = document.getElementById('cfg-supabase-url');
   const keyInput = document.getElementById('cfg-supabase-key');
+  const configSummary = document.getElementById('cloud-config-summary');
+  const profileConnectionLabel = document.getElementById('profile-connection-label');
+  const profileConnectionDot = document.getElementById('profile-connection-dot');
   if (urlInput) urlInput.value = cfg.url;
   if (keyInput) keyInput.value = cfg.key;
+  if (configSummary) configSummary.textContent = cfg.isConfigured ? '已配置 · 点击查看或更改' : '尚未配置 · 点击连接云端';
+  if (profileConnectionLabel) profileConnectionLabel.textContent = cfg.isConfigured ? '正在同步' : '同步未连接';
+  if (profileConnectionDot && !cfg.isConfigured) profileConnectionDot.style.background = 'var(--accent-rose)';
 
   // 初始化触感震动开关状态与实时切换监听
   const chkHaptic = document.getElementById('chk-haptic-feedback');
@@ -1662,6 +1668,8 @@ window.saveSupabaseConfig = function() {
   }
 
   supabaseService.saveConfig(url, key);
+  const configSummary = document.getElementById('cloud-config-summary');
+  if (configSummary) configSummary.textContent = '已配置 · 点击查看或更改';
   showToast('💾 凭据已安全持久化至本机沙盒，正在同步数据...');
   triggerHaptic('heavy');
   switchToTab('view-dashboard');
@@ -1676,6 +1684,8 @@ window.clearSupabaseConfig = function() {
   const keyInput = document.getElementById('cfg-supabase-key');
   if (urlInput) urlInput.value = '';
   if (keyInput) keyInput.value = '';
+  const configSummary = document.getElementById('cloud-config-summary');
+  if (configSummary) configSummary.textContent = '尚未配置 · 点击连接云端';
 
   const statusBox = document.getElementById('cfg-test-status');
   if (statusBox) statusBox.style.display = 'none';
@@ -1696,14 +1706,20 @@ function initRealtimeTelemetry() {
   supabaseService.onStatusChange((connected) => {
     const dot = document.getElementById('realtime-dot');
     const txt = document.getElementById('realtime-text');
+    const profileDot = document.getElementById('profile-connection-dot');
+    const profileLabel = document.getElementById('profile-connection-label');
     if (dot && txt) {
       if (connected) {
         dot.style.background = 'var(--accent-emerald)';
-        txt.textContent = 'Realtime 实时长连接正常';
+        txt.textContent = '所有进度已安全同步';
       } else {
         dot.style.background = 'var(--accent-rose)';
-        txt.textContent = '未连接或重连中...';
+        txt.textContent = '未连接或正在重连';
       }
+    }
+    if (profileDot && profileLabel) {
+      profileDot.style.background = connected ? 'var(--accent-emerald)' : 'var(--accent-rose)';
+      profileLabel.textContent = connected ? '同步正常' : '同步未连接';
     }
   });
 }

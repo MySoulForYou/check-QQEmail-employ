@@ -55,6 +55,17 @@ test('mobile cards omit company avatars and profile uses one fixed visual system
   assert.match(app, /const profiledApps = state\.applications\.map/);
 });
 
+test('profile uses grouped mobile settings and hides advanced cloud credentials by default', () => {
+  assert.match(html, /class="profile-sync-badge"/);
+  assert.match(html, /class="settings-section-label">工作台/);
+  assert.match(html, /class="settings-section-label">提醒与反馈/);
+  assert.match(html, /class="settings-section-label">数据与同步/);
+  assert.match(html, /<details class="settings-disclosure" id="cloud-config-disclosure">/);
+  assert.match(html, /高级设置 · 仅在首次连接或更换数据库时需要修改/);
+  assert.match(styles, /\.settings-disclosure\[open\] > summary \.setting-row-chevron/);
+  assert.match(app, /profileConnectionLabel\.textContent = cfg\.isConfigured/);
+});
+
 test('mobile timeline numbers visible rounds continuously while preserving parallel groups', () => {
   const start = app.indexOf('function buildVisibleStageSequenceMap(stages)');
   const end = app.indexOf('\nfunction getScheduleType(', start);
