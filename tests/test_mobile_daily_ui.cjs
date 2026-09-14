@@ -82,3 +82,12 @@ test('application cards place readable time below the title and open a detail di
   assert.match(app, /const latestStages = appStages\.filter/);
   assert.match(styles, /\.application-detail-modal\.is-open/);
 });
+
+test('application status filter returns when the user scrolls upward', () => {
+  assert.match(html, /id="application-smart-filter-dock"/);
+  assert.match(app, /function initApplicationSmartFilterDock\(\)/);
+  assert.match(app, /delta < -5[\s\S]*classList\.remove\('is-scroll-hidden'\)/);
+  assert.match(app, /delta > 5[\s\S]*classList\.add\('is-scroll-hidden'\)/);
+  assert.match(styles, /#view-applications \.bento-grid-wrapper[\s\S]*position: sticky/);
+  assert.match(styles, /\.bento-grid-wrapper\.is-scroll-docked/);
+});

@@ -2611,6 +2611,9 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
 #view-applications .search-bar-wrap input { height: 46px; box-shadow: none; background: rgba(255,255,255,.78); }
 #view-applications .urgent-action-banner { display: none !important; }
 #view-applications .bento-grid-wrapper {
+  position: sticky;
+  top: calc(6px + var(--safe-top));
+  z-index: 35;
   grid-template-columns: repeat(4, 1fr);
   gap: 0;
   margin: 4px 20px 12px;
@@ -2618,6 +2621,19 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
   border: 1px solid var(--border-porcelain);
   border-radius: 19px;
   background: #EFECE7;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .18s ease, box-shadow .18s ease;
+  will-change: transform;
+}
+#view-applications .bento-grid-wrapper.is-scroll-docked {
+  border-color: rgba(222, 211, 202, .94);
+  background: rgba(239, 236, 231, .94);
+  box-shadow: 0 10px 28px rgba(71, 51, 39, .14);
+  backdrop-filter: blur(14px);
+}
+#view-applications .bento-grid-wrapper.is-scroll-hidden {
+  transform: translateY(calc(-100% - 16px));
+  opacity: 0;
+  pointer-events: none;
 }
 #view-applications .bento-card {
   min-width: 0;

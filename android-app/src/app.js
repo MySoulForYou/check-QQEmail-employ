@@ -40,6 +40,7 @@ const state = {
   urgentBannerExpanded: false,
   dailyFocusedExpanded: true,
   timelineReturnFocus: null,
+  applicationLastScrollY: 0,
   calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   selectedCalendarKey: formatCalendarKey(new Date())
 };
@@ -47,6 +48,7 @@ const state = {
 // ==================== 1. 初始化入口 ====================
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
+  initApplicationSmartFilterDock();
   initSearchAndFilters();
   initSettings();
   initRealtimeTelemetry();
@@ -125,9 +127,14 @@ function switchToTab(tabId) {
     // 切回申请列表：无感恢复到上次浏览的精确坐标并刷新紧急通报栏
     renderDashboard();
     renderUrgentBanner();
+    const restoredY = state.dashboardScrollY || 0;
+    state.applicationLastScrollY = restoredY;
+    const filterDock = document.getElementById('application-smart-filter-dock');
+    filterDock?.classList.remove('is-scroll-hidden');
+    filterDock?.classList.toggle('is-scroll-docked', restoredY > 150);
     requestAnimationFrame(() => {
       window.scrollTo({
-        top: state.dashboardScrollY || 0,
+        top: restoredY,
         behavior: 'instant'
       });
     });
@@ -150,6 +157,41 @@ window.switchToTab = switchToTab;
 window.backToDashboard = function() {
   window.closeCompanyTimelineModal();
 };
+
+function initApplicationSmartFilterDock() {
+  const dock = document.getElementById('application-smart-filter-dock');
+  if (!dock) return;
+
+  let ticking = false;
+  state.applicationLastScrollY = window.scrollY || 0;
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const currentY = Math.max(0, window.scrollY || document.documentElement.scrollTop || 0);
+      const applicationsActive = document.getElementById('view-applications')?.classList.contains('active');
+      if (!applicationsActive) {
+        dock.classList.remove('is-scroll-docked', 'is-scroll-hidden');
+        state.applicationLastScrollY = currentY;
+        ticking = false;
+        return;
+      }
+
+      const delta = currentY - state.applicationLastScrollY;
+      const isPastHeader = currentY > 150;
+      dock.classList.toggle('is-scroll-docked', isPastHeader);
+      if (!isPastHeader) {
+        dock.classList.remove('is-scroll-hidden');
+      } else if (delta < -5) {
+        dock.classList.remove('is-scroll-hidden');
+      } else if (delta > 5) {
+        dock.classList.add('is-scroll-hidden');
+      }
+      state.applicationLastScrollY = currentY;
+      ticking = false;
+    });
+  }, { passive: true });
+}
 
 // ==================== 3. 初始化与搜索过滤 ====================
 function initSearchAndFilters() {
