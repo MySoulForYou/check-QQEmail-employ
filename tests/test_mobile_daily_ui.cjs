@@ -16,11 +16,13 @@ test('mobile shell exposes four small-screen primary destinations', () => {
   assert.doesNotMatch(nav, /招聘会|审核管理|全景档案/);
 });
 
-test('daily home keeps action, waiting feedback and inbox in one vertical flow', () => {
+test('daily home keeps action, focused applications and inbox in one vertical flow', () => {
   assert.match(html, /id="daily-week-strip"/);
   assert.match(html, /id="daily-timeline-list"/);
-  assert.match(html, /id="daily-waiting-list"/);
+  assert.match(html, /id="daily-focused-list"/);
   assert.match(html, /id="daily-inbox-banner"/);
+  assert.doesNotMatch(html, /id="daily-waiting-list"|id="daily-waiting-title"/);
+  assert.doesNotMatch(app, /waitingList|daily-waiting-card/);
   assert.match(app, /function renderDailyHome\(\)/);
   assert.match(app, /function buildDailyTimelineItem\(/);
   assert.match(styles, /\.daily-timeline-item/);

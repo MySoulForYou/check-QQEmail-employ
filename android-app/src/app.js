@@ -437,9 +437,8 @@ function renderDailyHome() {
   const focusedList = document.getElementById('daily-focused-list');
   const focusedCount = document.getElementById('daily-focused-count');
   const focusedToggle = document.getElementById('daily-focused-toggle');
-  const waitingList = document.getElementById('daily-waiting-list');
   const inbox = document.getElementById('daily-inbox-banner');
-  if (!timeline || !waitingList || !weekStrip) return;
+  if (!timeline || !weekStrip) return;
 
   const now = new Date();
   const todayKey = formatCalendarKey(now);
@@ -533,22 +532,6 @@ function renderDailyHome() {
         <button type="button" onclick="window.openManualModal('')">新建求职环节</button>
       </div>`;
   }
-
-  const waitingApps = state.applications.map(app => {
-    const stages = state.stages.filter(stage => stage.application_id === app.id && !['pending', 'ignored'].includes(stage.stage_status)).sort((a, b) => (a.seq || 1) - (b.seq || 1));
-    const latest = getLatestStageContext(stages).representative;
-    return latest?.stage_status === 'awaiting_result' ? { app, stage: latest } : null;
-  }).filter(Boolean).slice(0, 2);
-
-  waitingList.innerHTML = waitingApps.length ? waitingApps.map(({ app, stage }) => {
-    const stageDate = parseScheduleDate(stage.schedule_time);
-    const days = stageDate ? Math.max(1, Math.floor((now - stageDate) / 86400000)) : null;
-    return `
-      <button type="button" class="daily-waiting-card" onclick="window.viewCompanyTimeline('${app.id}')">
-        <span class="daily-waiting-copy"><strong>${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong><small>${escapeHtml(stage.stage_name || '当前环节')}结束${days ? ` ${days} 天` : '，等待反馈'}</small></span>
-        <span class="daily-reminder-pill">查看进展</span>
-      </button>`;
-  }).join('') : '<div class="daily-quiet-state">当前没有等待反馈的申请</div>';
 
   if (inbox) {
     inbox.classList.toggle('has-pending', pendingCount > 0);

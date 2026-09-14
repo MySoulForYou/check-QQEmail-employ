@@ -2387,38 +2387,6 @@ span.daily-primary-action {
 button.daily-primary-action { background: var(--accent-dark); color: #fff; }
 .daily-done-action { border: 1px solid var(--border-porcelain); background: #fff; color: #2B725B; font-size: 1.1rem; }
 
-.daily-waiting-card {
-  width: 100%;
-  min-height: 82px;
-  padding: 13px 14px;
-  border: 1px solid var(--border-porcelain);
-  border-radius: 21px;
-  background: rgba(255,255,255,.76);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
-  color: var(--text-main);
-  text-align: left;
-  box-shadow: 0 8px 20px rgba(91, 72, 52, .045);
-}
-
-.daily-waiting-card + .daily-waiting-card { margin-top: 9px; }
-
-.daily-waiting-copy { min-width: 0; }
-.daily-waiting-copy strong, .daily-waiting-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.daily-waiting-copy strong { font-size: .82rem; font-weight: 800; }
-.daily-waiting-copy small { margin-top: 5px; font-size: .7rem; color: var(--text-sub); }
-
-.daily-reminder-pill {
-  padding: 7px 9px;
-  border-radius: 12px;
-  background: #E9F2ED;
-  color: #28644F;
-  font-size: .66rem;
-  font-weight: 800;
-}
-
 .daily-inbox-banner {
   width: 100%;
   min-height: 76px;
@@ -2557,8 +2525,6 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
   .daily-home-header, .daily-home-content { padding-left: 16px; padding-right: 16px; }
   .daily-action-card { padding: 15px; }
   .daily-card-head strong { font-size: .9rem; }
-  .daily-reminder-pill { display: none; }
-  .daily-waiting-card { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
