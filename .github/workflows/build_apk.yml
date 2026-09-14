@@ -36,9 +36,45 @@ jobs:
           cache: 'npm'
           cache-dependency-path: android-app/package.json
 
+      - name: 🏷️ 从 Release 标签生成应用版本
+        shell: bash
+        run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release 标签必须使用 v主版本.次版本.修订号，例如 v3.5.4"
+            exit 1
+          fi
+          IFS='.' read -r VERSION_MAJOR VERSION_MINOR VERSION_PATCH <<< "$VERSION_NAME"
+          VERSION_CODE=$((VERSION_MAJOR * 1000000 + VERSION_MINOR * 1000 + VERSION_PATCH))
+          echo "OFFERPILOT_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "OFFERPILOT_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VITE_APP_VERSION=$VERSION_NAME" >> "$GITHUB_ENV"
+
+      - name: 🔐 恢复并校验 Android 正式签名
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "缺少 GitHub Actions Secret: $name"
+              exit 1
+            fi
+          done
+          KEYSTORE_PATH="$RUNNER_TEMP/offerpilot-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+
       - name: 📦 安装移动端前端依赖
         working-directory: android-app
-        run: npm install
+        run: npm ci
 
       - name: ⚡️ 编译移动端生产资源
         working-directory: android-app
@@ -51,27 +87,43 @@ jobs:
       - name: 🔧 赋予 Gradle 执行权限
         run: chmod +x android-app/android/gradlew
 
-      - name: 🏗️ 编译 Android Debug APK
+      - name: 🏗️ 编译已签名 Android Release APK
         working-directory: android-app/android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: 🏷️ 整理与重命名 APK 产物
         run: |
           mkdir -p output_apk
-          cp android-app/android/app/build/outputs/apk/debug/app-debug.apk output_apk/OfferPilot-android-debug.apk
-          echo "✅ APK 构建成功，文件详情:"
-          ls -lah output_apk/OfferPilot-android-debug.apk
+          OUTPUT_FILE="output_apk/OfferPilot-v${OFFERPILOT_VERSION_NAME}-android.apk"
+          cp android-app/android/app/build/outputs/apk/release/app-release.apk "$OUTPUT_FILE"
+          jarsigner -verify -certs "$OUTPUT_FILE" >/dev/null
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${OFFERPILOT_VERSION_NAME}/OfferPilot-v${OFFERPILOT_VERSION_NAME}-android.apk"
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${OFFERPILOT_VERSION_NAME}"
+          printf '{"version":"%s","title":"OfferPilot v%s","apkUrl":"%s","releaseUrl":"%s","publishedAt":"%s"}\n' \
+            "$OFFERPILOT_VERSION_NAME" "$OFFERPILOT_VERSION_NAME" "$APK_URL" "$RELEASE_URL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > output_apk/offerpilot-update.json
+          echo "APK 构建及签名验证成功，文件详情:"
+          ls -lah "$OUTPUT_FILE" output_apk/offerpilot-update.json
 
       - name: 📤 上传 APK 到 Actions Artifacts (供网页与手机直接下载)
         uses: actions/upload-artifact@v4
         with:
-          name: OfferPilot-Android-APK
-          path: output_apk/OfferPilot-android-debug.apk
+          name: OfferPilot-v${{ env.OFFERPILOT_VERSION_NAME }}-Android-APK
+          path: |
+            output_apk/OfferPilot-v${{ env.OFFERPILOT_VERSION_NAME }}-android.apk
+            output_apk/offerpilot-update.json
           retention-days: 30
 
       - name: 🚀 自动挂载到 GitHub Release 附件列表 (Release 时自动触发)
         uses: softprops/action-gh-release@v2
         with:
-          files: output_apk/OfferPilot-android-debug.apk
+          files: |
+            output_apk/OfferPilot-v${{ env.OFFERPILOT_VERSION_NAME }}-android.apk
+            output_apk/offerpilot-update.json
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 清理临时签名文件
+        if: always()
+        run: rm -f "$RUNNER_TEMP/offerpilot-release.jks"
