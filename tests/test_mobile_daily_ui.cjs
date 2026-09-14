@@ -83,6 +83,25 @@ test('mobile timeline numbers visible rounds continuously while preserving paral
   assert.equal(map.get(3), 2);
 });
 
+test('application detail timeline uses compact localized rows', () => {
+  const parseStart = app.indexOf('function parseScheduleDate(value)');
+  const parseEnd = app.indexOf('\nfunction formatCalendarKey(', parseStart);
+  const formatStart = app.indexOf('function getScheduleType(stage)');
+  const formatEnd = app.indexOf('\nfunction updateKPIStats(', formatStart);
+  const context = { Date, URL };
+  vm.runInNewContext(
+    `${app.slice(parseStart, parseEnd)}\n${app.slice(formatStart, formatEnd)}; this.formatSchedule = formatTimelineSchedule; this.formatMeeting = formatTimelineMeetingInfo;`,
+    context
+  );
+
+  assert.equal(context.formatSchedule({ stage_name: '综合面试', schedule_time: '2026-09-16 08:30' }), '开始 · 9月16日 08:30');
+  assert.equal(context.formatMeeting('https://cmbnt.cmbchina.com/room/42'), 'cmbnt.cmbchina.com');
+  assert.match(app, /第 \$\{displaySeq\} 轮/);
+  assert.doesNotMatch(app, /Stage \$\{displaySeq\}/);
+  assert.match(styles, /\.timeline-bubble-item \{[\s\S]*margin-bottom: 10px/);
+  assert.match(styles, /\.bubble-porcelain-card \{[\s\S]*padding: 11px 13px/);
+});
+
 test('application cards place readable time below the title and open a detail dialog', () => {
   assert.match(app, /class="mobile-card-schedule-row"/);
   assert.match(styles, /\.mobile-card-schedule-row \.time-pill-badge[\s\S]*max-width: none/);

@@ -438,6 +438,31 @@ function getScheduleType(stage) {
   return 'unknown';
 }
 
+function formatTimelineSchedule(stage) {
+  const raw = String(stage?.schedule_time || '').trim();
+  if (!raw || raw === '待定') return '时间待定';
+  const parsed = parseScheduleDate(raw);
+  if (!parsed) return raw;
+  const includeYear = parsed.getFullYear() !== new Date().getFullYear();
+  const datePart = `${includeYear ? `${parsed.getFullYear()}年` : ''}${parsed.getMonth() + 1}月${parsed.getDate()}日`;
+  const hasClock = /\d{1,2}:\d{2}/.test(raw);
+  const clockPart = hasClock ? ` ${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}` : '';
+  const scheduleType = getScheduleType(stage);
+  const prefix = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '时间';
+  return `${prefix} · ${datePart}${clockPart}`;
+}
+
+function formatTimelineMeetingInfo(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return raw;
+  }
+}
+
 function updateKPIStats() {
   // 仅统计已审核放行（拥有非 pending/ignored 环节）且非归档的投递单
   const validApps = state.applications.filter(app => {
@@ -1278,13 +1303,13 @@ function renderTimelineView(appId) {
     const scheduledNames = latestStages.filter(stage => stage.stage_status === 'scheduled').map(stage => stage.stage_name);
     const awaitingNames = latestStages.filter(stage => stage.stage_status === 'awaiting_result').map(stage => stage.stage_name);
     if (scheduledNames.length > 0) {
-      statusBadge.textContent = `⏳ ${scheduledNames.join(' / ')} 待完成`;
+      statusBadge.textContent = `${scheduledNames.join(' / ')} · 待进行`;
     } else if (awaitingNames.length > 0) {
-      statusBadge.textContent = `🎯 ${awaitingNames.join(' / ')} 等待结果`;
+      statusBadge.textContent = `${awaitingNames.join(' / ')} · 等待结果`;
     } else if (latestStage.stage_status === 'offered' || targetApp.overall_status === 'offered') {
-      statusBadge.textContent = `🎉 已斩获 录用 Offer`;
+      statusBadge.textContent = '已获得 Offer';
     } else if (latestStage.stage_status === 'pending') {
-      statusBadge.textContent = `📬 新邮件待审核`;
+      statusBadge.textContent = '新邮件待审核';
     } else {
       statusBadge.textContent = `最新: ${latestStage.stage_name}`;
     }
@@ -1325,10 +1350,8 @@ function renderTimelineView(appId) {
       badgeClass = 'badge-passed';
     }
 
-    // 格式化时间
-    const scheduleType = getScheduleType(stg);
-    const timePrefix = scheduleType === 'start' ? '开始' : scheduleType === 'deadline' ? '截止' : '时间';
-    const timeDisplay = stg.schedule_time && stg.schedule_time !== '待定' ? `${timePrefix}：${stg.schedule_time}` : '时间待定';
+    const timeDisplay = formatTimelineSchedule(stg);
+    const meetingDisplay = formatTimelineMeetingInfo(stg.meeting_info);
 
     return `
       <div class="timeline-bubble-item ${isParallel ? 'timeline-parallel-item' : ''}">
@@ -1338,30 +1361,27 @@ function renderTimelineView(appId) {
         <!-- 气泡对话框白瓷卡片 -->
         <div class="bubble-porcelain-card ${isLatestActive ? 'card-active-luminous' : ''}" onclick="window.openEditModalForCurrent('${stg.id}')">
           <div class="bubble-top-row">
-            <span class="bubble-seq-text">Stage ${displaySeq}${isParallel ? ' · 并列' : ''}</span>
+            <span class="bubble-seq-text">第 ${displaySeq} 轮${isParallel ? ' · 并列环节' : ''}</span>
             <span class="bubble-status-badge ${badgeClass}">${badgeText}</span>
           </div>
 
-          <div class="bubble-stage-title">${escapeHtml(stg.stage_name)}</div>
-          <div class="bubble-time-text">🗓️ ${escapeHtml(timeDisplay)}</div>
+          <div class="bubble-main-row">
+            <div class="bubble-main-copy">
+              <div class="bubble-stage-title">${escapeHtml(stg.stage_name)}</div>
+              <div class="bubble-time-text">${escapeHtml(timeDisplay)}</div>
+            </div>
+            ${isLatestActive ? `
+              <button class="btn-mini-pill btn-mini-action" onclick="event.stopPropagation(); window.markStageComplete('${stg.id}')">标记已参加</button>
+            ` : ''}
+          </div>
 
           ${stg.meeting_info ? `
             <div class="bubble-meeting-slot" onclick="event.stopPropagation()">
-              <span class="meeting-info-text" title="${escapeHtml(stg.meeting_info)}">👥 ${escapeHtml(stg.meeting_info)}</span>
-              <div class="meeting-btn-group">
-                <button class="btn-mini-pill btn-mini-copy" onclick="window.copyText('${escapeHtml(stg.meeting_info)}')">复制</button>
-                ${isLatestActive ? `
-                  <button class="btn-mini-pill btn-mini-action" onclick="window.markStageComplete('${stg.id}')">标为已参加</button>
-                ` : ''}
-              </div>
+              <span class="meeting-info-mark" aria-hidden="true">↗</span>
+              <span class="meeting-info-text" title="${escapeHtml(stg.meeting_info)}">${escapeHtml(meetingDisplay)}</span>
+              <button class="btn-mini-pill btn-mini-copy" onclick="window.copyText('${escapeHtml(stg.meeting_info)}')">复制</button>
             </div>
-          ` : `
-            ${isLatestActive ? `
-              <div style="display:flex;justify-content:flex-end;margin-top:6px;" onclick="event.stopPropagation()">
-                <button class="btn-mini-pill btn-mini-action" onclick="window.markStageComplete('${stg.id}')">✓ 标为已参加</button>
-              </div>
-            ` : ''}
-          `}
+          ` : ''}
         </div>
       </div>
     `;
