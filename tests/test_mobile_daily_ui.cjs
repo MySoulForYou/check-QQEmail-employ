@@ -113,6 +113,15 @@ test('application cards place readable time below the title and open a detail di
   assert.match(styles, /\.application-detail-modal\.is-open/);
 });
 
+test('application list cards use a compact mobile summary instead of a full labeled pipeline', () => {
+  assert.match(app, /class="compact-card-progress"/);
+  assert.match(app, /const visibleStages = validStages\.slice\(-5\)/);
+  assert.match(app, />\$\{visibleRoundCount\} 轮 · \$\{item\.stages\.length\} 个环节</);
+  assert.doesNotMatch(app, /求职时序: 第 \$\{item\.stages\.length\} 轮推进/);
+  assert.match(styles, /#view-applications \.porcelain-job-card \{[^}]*padding: 11px 12px 9px/);
+  assert.match(styles, /#view-applications \.stepper-dot \{[^}]*width: 8px; height: 8px/);
+});
+
 test('application status filter returns when the user scrolls upward', () => {
   assert.match(html, /id="application-smart-filter-dock"/);
   assert.match(app, /function initApplicationSmartFilterDock\(\)/);

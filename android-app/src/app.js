@@ -833,13 +833,13 @@ function renderDashboard() {
     // 时间胶囊
     let timePillHtml = '';
     if (isOffered) {
-      timePillHtml = `<span class="time-pill-badge pill-green" title="${escapeHtml(scheduleTime)}">🎉 已获 Offer</span>`;
+      timePillHtml = `<span class="time-pill-badge pill-green" title="${escapeHtml(scheduleTime)}">已获 Offer</span>`;
     } else if (isAwaiting) {
-      timePillHtml = `<span class="time-pill-badge pill-gray" title="${escapeHtml(scheduleTime)}">🎯 等待结果</span>`;
+      timePillHtml = `<span class="time-pill-badge pill-gray" title="${escapeHtml(scheduleTime)}">等待结果</span>`;
     } else if (isScheduled) {
       const verbTag = scheduleVerb ? `<span style="font-weight:800;opacity:0.9;">[${scheduleVerb}]</span> ` : '';
       const badgeStyle = scheduleType === 'deadline' ? 'pill-rose' : 'pill-indigo';
-      timePillHtml = `<span class="time-pill-badge ${badgeStyle}" title="${escapeHtml(scheduleTime)}">🗓️ ${verbTag}${escapeHtml(shortTime)}</span>`;
+      timePillHtml = `<span class="time-pill-badge ${badgeStyle}" title="${escapeHtml(scheduleTime)}">${verbTag}${escapeHtml(shortTime)}</span>`;
     } else {
       timePillHtml = `<span class="time-pill-badge pill-gray" title="${escapeHtml(stageName)}">${escapeHtml(shortTime)}</span>`;
     }
@@ -847,14 +847,15 @@ function renderDashboard() {
     // 检查并列待办环节 (除了 latest 之外还有处于 scheduled 的环节)
     const otherScheduledStages = item.stages.filter(s => s.id !== (latest ? latest.id : null) && s.stage_status === 'scheduled');
     const parallelNoticeHtml = otherScheduledStages.length > 0
-      ? `<div style="font-size:0.72rem;color:var(--accent-rose);margin:4px 0 2px 0;font-weight:700;display:flex;align-items:center;gap:4px;">
-          <span>⚡ 并列待办:</span>
+      ? `<div class="parallel-stage-notice">
+          <span>并列待办 ·</span>
           <span>${escapeHtml(otherScheduledStages.map(s => s.stage_name).join('、'))}</span>
         </div>`
       : '';
 
-    // Stepper 链路 (简历筛选 -> 笔试 -> 一面 -> 二面 -> HR面 -> 发Offer)
+    // 紧凑进度点：手机卡片只展示推进概况，完整环节留在档案弹窗中。
     const stepperHtml = buildStepperHtml(item.stages, stageName, isOffered);
+    const visibleRoundCount = new Set(item.stages.map(stage => stage.seq || 1)).size;
 
     html += `
       <div class="porcelain-job-card${item.is_focused ? ' is-focused' : ''}" onclick="window.viewCompanyTimeline('${item.id}')">
@@ -863,10 +864,7 @@ function renderDashboard() {
             <div class="company-titles">
               <div class="company-name-bold" title="${escapeHtml(item.company)}">${escapeHtml(item.company)}</div>
               <div class="company-pos-sub" title="${escapeHtml(item.position || '校招岗位')}">${escapeHtml(item.position || '校招岗位')}</div>
-              <div class="company-stage-sub">
-                ${item.department ? `<span>${escapeHtml(item.department)}</span> · ` : ''}
-                <span class="stage-tag-mini">${escapeHtml(stageName)}</span>
-              </div>
+              ${item.department ? `<div class="company-stage-sub"><span>${escapeHtml(item.department)}</span></div>` : ''}
             </div>
           </div>
           <div class="mobile-card-top-actions">
@@ -875,28 +873,25 @@ function renderDashboard() {
         </div>
 
         <div class="mobile-card-schedule-row">
-          <span class="mobile-card-schedule-label">${isScheduled ? '下一安排' : '当前状态'}</span>
+          <span class="stage-tag-mini">${escapeHtml(stageName)}</span>
           ${timePillHtml}
-        </div>
-
-        <!-- 水平 Stepper 求职链路 -->
-        <div class="stepper-pipeline-container">
-          ${stepperHtml}
         </div>
 
         ${parallelNoticeHtml}
 
-        <!-- 底部候选人与快捷操作 -->
-        <div class="card-bottom-row" onclick="event.stopPropagation()">
-          <span class="card-candidate-name">求职时序: 第 ${item.stages.length} 轮推进</span>
+        <div class="card-bottom-row">
+          <div class="compact-card-progress" aria-label="共 ${visibleRoundCount} 轮 ${item.stages.length} 个环节">
+            <div class="stepper-pipeline-container">${stepperHtml}</div>
+            <span class="card-candidate-name">${visibleRoundCount} 轮 · ${item.stages.length} 个环节</span>
+          </div>
           <div class="card-actions-right">
             ${isScheduled ? `
-              <button class="btn-card-check" title="标为已参加 (进入等待结果)" onclick="window.markStageComplete('${latest.id}')">
+              <button class="btn-card-check" title="标为已参加 (进入等待结果)" onclick="event.stopPropagation(); window.markStageComplete('${latest.id}')">
                 ✓
               </button>
             ` : ''}
-            <button class="btn-card-more" onclick="window.viewCompanyTimeline('${item.id}')">
-              查看档案 ➔
+            <button class="btn-card-more" onclick="event.stopPropagation(); window.viewCompanyTimeline('${item.id}')" aria-label="查看 ${escapeHtml(item.company)} 的申请档案">
+              详情 <span aria-hidden="true">›</span>
             </button>
           </div>
         </div>
@@ -924,7 +919,7 @@ window.toggleApplicationFocus = async function(id, button) {
   }
 };
 
-// 渲染水平 Stepper 步进条 (100% 依据该企业真实已准入的环节动态生成)
+// 渲染卡片内紧凑进度点（完整名称与操作统一在申请档案弹窗展示）
 function buildStepperHtml(stages, currentStageName, isOffered) {
   // 1. 严格筛选该企业已准入放行的真实有效环节，按 seq 升序排列
   const validStages = (stages || [])
@@ -934,66 +929,51 @@ function buildStepperHtml(stages, currentStageName, isOffered) {
   // 2. 如果没有任何有效环节，默认展示单个「网申投递」节点
   if (validStages.length === 0) {
     return `
-      <div class="stepper-track-row single-node">
-        <div class="stepper-node-item active">
-          <div class="stepper-dot active">●</div>
-          <span class="stepper-label">${escapeHtml(currentStageName || '网申投递')}</span>
-        </div>
+      <div class="stepper-track-row single-node" title="${escapeHtml(currentStageName || '网申投递')}">
+        <span class="stepper-dot active"></span>
       </div>
     `;
   }
 
-  // 3. 计算最后一个进行中节点的索引 (最新环节)
+  // 3. 最多展示最近 5 个环节，避免长流程挤压小屏宽度。
   const lastIndex = validStages.length - 1;
+  const visibleStages = validStages.slice(-5);
+  const hiddenCount = validStages.length - visibleStages.length;
 
   let nodesHtml = '';
-  validStages.forEach((stg, idx) => {
-    const isLatest = idx === lastIndex;
+  visibleStages.forEach((stg, visibleIndex) => {
+    const actualIndex = hiddenCount + visibleIndex;
+    const isLatest = actualIndex === lastIndex;
     const isScheduled = stg.stage_status === 'scheduled';
     const isAwaiting = stg.stage_status === 'awaiting_result';
     const isStageOffered = stg.stage_status === 'offered' || isOffered;
 
     let dotClass = 'done';
-    let dotContent = '✓';
-    let itemClass = '';
+    let itemClass = 'done';
 
     if (isStageOffered) {
-      dotClass = 'done';
-      dotContent = '✓';
       if (isLatest) {
         dotClass = 'active';
-        dotContent = '🎉';
         itemClass = 'active';
       }
     } else if (isLatest) {
       if (isScheduled || isAwaiting) {
         dotClass = 'active';
-        dotContent = '●';
         itemClass = 'active';
-      } else {
-        dotClass = 'done';
-        dotContent = '✓';
       }
-    } else {
-      // 历史环节统一打勾
-      dotClass = 'done';
-      dotContent = '✓';
     }
 
-    // 智能精简标签名称 (超过 5 个字自动精简，悬浮/点击显示全称)
-    const rawName = stg.stage_name || `第${idx + 1}轮`;
-    const shortName = rawName.length > 5 ? rawName.slice(0, 4) + '…' : rawName;
+    const rawName = stg.stage_name || `第${actualIndex + 1}轮`;
 
     nodesHtml += `
-      <div class="stepper-node-item ${itemClass}">
-        <div class="stepper-dot ${dotClass}">${dotContent}</div>
-        <span class="stepper-label" title="${escapeHtml(rawName)}">${escapeHtml(shortName)}</span>
-      </div>
+      <span class="stepper-node-item ${itemClass}" title="${escapeHtml(rawName)}">
+        <span class="stepper-dot ${dotClass}"></span>
+      </span>
     `;
   });
 
   const isSingle = validStages.length === 1;
-  return `<div class="stepper-track-row ${isSingle ? 'single-node' : ''}">${nodesHtml}</div>`;
+  return `<div class="stepper-track-row ${isSingle ? 'single-node' : ''}">${hiddenCount > 0 ? `<span class="stepper-overflow">+${hiddenCount}</span>` : ''}${nodesHtml}</div>`;
 }
 
 // ==================== 6. 邮件待审门禁大厅 (Review Gatekeeper) ====================
