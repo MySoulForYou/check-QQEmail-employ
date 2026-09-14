@@ -163,21 +163,21 @@
       <!-- ================= 视图 E: 求职日历大厅与当日事项 (Calendar) ================= -->
       <section id="view-calendar" class="tab-view">
         <header class="app-topbar calendar-topbar">
-          <div class="topbar-header-row">
-            <div class="brand-badge">
-              <span class="sparkle-icon">📅</span>
-              <span class="brand-text">求职日程日历</span>
+          <div class="calendar-heading-row">
+            <div>
+              <span class="calendar-eyebrow">求职日程</span>
+              <h1 class="calendar-page-title">日历</h1>
             </div>
             <button class="calendar-today-pill" id="btn-calendar-today" onclick="window.goToCalendarToday()">
-              今天
+              回到今天
             </button>
           </div>
 
           <!-- 月份切换控制器 -->
           <div class="calendar-month-controller">
-            <button type="button" class="btn-month-nav" onclick="window.changeCalendarMonth(-1)" title="上个月">‹</button>
+            <button type="button" class="btn-month-nav" onclick="window.changeCalendarMonth(-1)" aria-label="上个月">‹</button>
             <span class="calendar-month-display" id="calendar-month-title">2026年9月</span>
-            <button type="button" class="btn-month-nav" onclick="window.changeCalendarMonth(1)" title="下个月">›</button>
+            <button type="button" class="btn-month-nav" onclick="window.changeCalendarMonth(1)" aria-label="下个月">›</button>
           </div>
         </header>
 
@@ -185,7 +185,7 @@
           <!-- 瓷感月历网格卡片 -->
           <div class="porcelain-calendar-card">
             <div class="calendar-weekdays-row">
-              <span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span><span>周六</span><span>周日</span>
+              <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
             </div>
             <div class="calendar-days-grid" id="calendar-days-grid">
               <!-- 动态注入 42 格日历单元 -->
@@ -196,9 +196,8 @@
           <div class="calendar-agenda-section">
             <div class="agenda-section-header">
               <div class="agenda-title-group">
-                <span class="agenda-dot-indicator"></span>
-                <span class="agenda-title">当日事项</span>
                 <span class="agenda-date-badge" id="calendar-selected-date-badge">9月3日</span>
+                <span class="agenda-title">日程</span>
               </div>
               <span class="agenda-count-badge" id="calendar-selected-count-badge">0 项安排</span>
             </div>
@@ -488,7 +487,9 @@
 
         <div class="sheet-header">
           <div class="sheet-header-title">
-            <span class="agenda-sheet-icon">📅</span>
+            <span class="agenda-sheet-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 7h14v12H5zM8 4v6M16 4v6M5 11h14"/></svg>
+            </span>
             <div>
               <div class="sheet-title-text" id="agenda-sheet-date-title">9月3日 周四</div>
               <div class="agenda-sheet-subtitle">

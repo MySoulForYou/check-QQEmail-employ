@@ -2200,9 +2200,8 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
   if (items.length === 0) {
     const emptyHtml = `
       <div class="agenda-empty-card">
-        <div class="agenda-empty-icon">☕</div>
-        <div class="agenda-empty-title">当天没有求职日程安排</div>
-        <div class="agenda-empty-sub">可以安心复盘、准备刷题或投递新岗位</div>
+        <div class="agenda-empty-title">当天暂无安排</div>
+        <div class="agenda-empty-sub">选择其他日期，或为当天添加求职日程</div>
       </div>
     `;
     if (list) list.innerHTML = emptyHtml;
@@ -2216,19 +2215,18 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
       const time = `${item.date.getHours().toString().padStart(2, '0')}:${item.date.getMinutes().toString().padStart(2, '0')}`;
       return `
         <div class="agenda-item-card agenda-recruitment-event" onclick="window.closeCalendarAgendaSheetDirect(); window.openRecruitmentEvent('${event.id}')">
+          <div class="agenda-time-column"><strong>${time}</strong><span>活动</span></div>
           <div class="agenda-left-info">
-            <div class="agenda-item-time-row"><span class="agenda-time-text">⏱ ${time}</span><span class="agenda-type-tag agenda-type-event">招聘会</span></div>
             <div class="agenda-company-title">${event.is_focused ? '★ ' : ''}${escapeHtml(event.title)}</div>
-            <div class="agenda-stage-subtitle">${escapeHtml(event.organizer || '主办方未填写')} · ${escapeHtml(event.location || '线上 / 待补充')}</div>
+            <div class="agenda-stage-subtitle"><span class="agenda-type-tag agenda-type-event">招聘会</span>${escapeHtml(event.organizer || '主办方未填写')} · ${escapeHtml(event.location || '线上 / 待补充')}</div>
           </div>
-          <span class="bento-status-tag pill-amber">${event.status === 'attended' ? '已参加' : '待参加'}</span>
+          <div class="agenda-item-trailing"><span class="bento-status-tag pill-amber">${event.status === 'attended' ? '已参加' : '待参加'}</span><span class="agenda-chevron">›</span></div>
         </div>`;
     }
     const { stage, app, date } = item;
     const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     const scheduleType = getScheduleType(stage);
     const typeTagLabel = scheduleType === 'deadline' ? '截止' : scheduleType === 'start' ? '开始' : '时间';
-    const typeClass = `agenda-type-${scheduleType}`;
     const isScheduled = stage.stage_status === 'scheduled';
     const isAwaiting = stage.stage_status === 'awaiting_result';
     const isOffer = stage.stage_status === 'offered';
@@ -2248,17 +2246,14 @@ function renderCalendarAgenda(entries = getCalendarEntries()) {
 
     return `
       <div class="agenda-item-card" onclick="window.closeCalendarAgendaSheetDirect(); window.viewCompanyTimeline('${app.id}')">
-        <div class="agenda-left-info">
-          <div class="agenda-item-time-row">
-            <span class="agenda-time-text">⏱ ${time}</span>
-            <span class="agenda-type-tag ${typeClass}">[${typeTagLabel}]</span>
-          </div>
-          <div class="agenda-company-title">${escapeHtml(app.company)} · ${escapeHtml(stage.stage_name)}</div>
+        <div class="agenda-time-column"><strong>${time}</strong><span>${typeTagLabel}</span></div>
+          <div class="agenda-left-info">
+            <div class="agenda-company-title">${escapeHtml(app.company)} · ${escapeHtml(stage.stage_name)}</div>
           <div class="agenda-stage-subtitle">${app.position ? escapeHtml(app.position) : '求职岗位'}${app.department ? ` · ${escapeHtml(app.department)}` : ''}</div>
         </div>
-        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        <div class="agenda-item-trailing">
           <span class="bento-status-tag ${statusPillClass}">${statusText}</span>
-          <span style="font-size:0.72rem; color:var(--accent-indigo); font-weight:700;">查看档案 ➔</span>
+          <span class="agenda-chevron">›</span>
         </div>
       </div>
     `;

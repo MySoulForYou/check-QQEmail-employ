@@ -126,6 +126,17 @@ test('application list cards combine company and position while showing compact 
   assert.match(styles, /#view-applications \.stepper-pipeline-container[^}]*overflow-x: auto/);
 });
 
+test('calendar uses a compact professional month grid and schedule list', () => {
+  assert.match(html, /class="calendar-heading-row"/);
+  assert.match(html, /class="calendar-page-title">日历/);
+  assert.match(html, /<span>一<\/span><span>二<\/span>/);
+  assert.match(app, /class="agenda-time-column"><strong>\$\{time\}<\/strong>/);
+  assert.match(app, /class="agenda-item-trailing"/);
+  assert.doesNotMatch(app, /agenda-time-text">⏱/);
+  assert.match(styles, /\.cal-day-cell \{[\s\S]*min-height: 39px/);
+  assert.match(styles, /\.calendar-agenda-section \{[\s\S]*background: transparent[\s\S]*box-shadow: none/);
+});
+
 test('application status filter returns when the user scrolls upward', () => {
   assert.match(html, /id="application-smart-filter-dock"/);
   assert.match(app, /function initApplicationSmartFilterDock\(\)/);
