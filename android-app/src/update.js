@@ -1,10 +1,29 @@
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const RELEASE_API = 'https://api.github.com/repos/MySoulForYou/check-QQEmail-employ/releases/latest';
 const UPDATE_MANIFEST_URL = 'https://github.com/MySoulForYou/check-QQEmail-employ/releases/latest/download/offerpilot-update.json';
-const WEB_FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '3.5.5';
+const WEB_FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION || '3.5.6';
+
+async function requestJson(url, headers = {}) {
+  if (Capacitor.isNativePlatform()) {
+    const response = await CapacitorHttp.get({
+      url,
+      headers,
+      connectTimeout: 10000,
+      readTimeout: 10000
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+  }
+
+  const response = await fetch(url, { headers, cache: 'no-store' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
 
 export function normalizeVersion(value) {
   return String(value || '')
@@ -44,24 +63,23 @@ async function check() {
   let publishedAt = '';
   let title = '';
 
-  const manifestResponse = await fetch(UPDATE_MANIFEST_URL, { cache: 'no-store' });
-  if (manifestResponse.ok) {
-    const manifest = await manifestResponse.json();
+  try {
+    const manifest = await requestJson(UPDATE_MANIFEST_URL);
     latestVersion = String(manifest.version || '').replace(/^v/i, '');
     releaseUrl = manifest.releaseUrl || '';
     apkUrl = manifest.apkUrl || '';
     publishedAt = manifest.publishedAt || '';
     title = manifest.title || '';
-  } else {
-    const response = await fetch(RELEASE_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-      cache: 'no-store'
-    });
-    if (!response.ok) {
-      const message = response.status === 403 ? 'GitHub 查询频率受限，请稍后重试' : `GitHub Release 查询失败（${response.status}）`;
+  } catch (_manifestError) {
+    let release;
+    try {
+      release = await requestJson(RELEASE_API, { Accept: 'application/vnd.github+json' });
+    } catch (error) {
+      const message = /HTTP 403/.test(error.message)
+        ? 'GitHub 查询频率受限，请稍后重试'
+        : '无法连接 GitHub，请检查手机网络后重试';
       throw new Error(message);
     }
-    const release = await response.json();
     latestVersion = String(release.tag_name || '').replace(/^v/i, '');
     const assets = Array.isArray(release.assets) ? release.assets : [];
     const apkAsset = assets.find(asset => /OfferPilot.*android.*\.apk$/i.test(asset.name || ''))

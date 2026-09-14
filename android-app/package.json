@@ -1,6 +1,6 @@
 {
   "name": "offerpilot-android",
-  "version": "3.5.5",
+  "version": "3.5.6",
   "private": true,
   "description": "OfferPilot 求职全景智能助手 Android 移动端",
   "scripts": {

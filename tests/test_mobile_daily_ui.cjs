@@ -47,7 +47,7 @@ test('manual stage flow uses a compact professional sheet without emoji decorati
   assert.match(styles, /#manual-stage-modal \.manual-status-group/);
 });
 
-test('settings exposes a GitHub Release update flow with semantic version comparison', () => {
+test('settings exposes a native-safe GitHub Release update flow with semantic version comparison', () => {
   assert.match(html, /id="app-update-row"[^>]+onclick="window\.checkForAppUpdate\(\)"/);
   assert.match(html, /id="app-update-modal"/);
   assert.match(html, /id="app-update-download"[^>]+onclick="window\.downloadAppUpdate\(\)"/);
@@ -55,6 +55,8 @@ test('settings exposes a GitHub Release update flow with semantic version compar
   assert.match(app, /updateService\.openDownload\(availableAppUpdate\)/);
   assert.match(updater, /releases\/latest/);
   assert.match(updater, /browser_download_url/);
+  assert.match(updater, /CapacitorHttp\.get/);
+  assert.match(updater, /catch \(_manifestError\)/);
 
   const start = updater.indexOf('export function normalizeVersion');
   const end = updater.indexOf('\nasync function getCurrentVersion', start);
@@ -69,7 +71,7 @@ test('settings exposes a GitHub Release update flow with semantic version compar
 });
 
 test('Android release build uses persistent signing and tag-derived version codes', () => {
-  assert.equal(androidPackage.version, '3.5.5');
+  assert.equal(androidPackage.version, '3.5.6');
   assert.match(androidGradle, /OFFERPILOT_VERSION_NAME/);
   assert.match(androidGradle, /OFFERPILOT_VERSION_CODE/);
   assert.match(androidGradle, /signingConfig signingConfigs\.release/);
