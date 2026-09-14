@@ -6,6 +6,7 @@
 import { supabaseService } from './supabase.js';
 import { triggerHaptic } from './haptics.js';
 import { notificationService } from './notifications.js';
+import { updateService } from './update.js';
 
 // ==================== 时间与日期辅助解析 ====================
 function parseScheduleDate(value) {
@@ -45,6 +46,8 @@ const state = {
   selectedCalendarKey: formatCalendarKey(new Date())
 };
 
+let availableAppUpdate = null;
+
 // ==================== 1. 初始化入口 ====================
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
@@ -53,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSettings();
   initRealtimeTelemetry();
   notificationService.init();
+  initAppUpdater();
   
   // 首次拉取数据或展示配置指引
   const cfg = supabaseService.getConfig();
@@ -1643,6 +1647,68 @@ function initSettings() {
     });
   }
 }
+
+async function initAppUpdater() {
+  const currentVersion = await updateService.getCurrentVersion();
+  const versionLabel = document.getElementById('app-current-version');
+  if (versionLabel) versionLabel.textContent = `v${currentVersion}`;
+}
+
+window.checkForAppUpdate = async function() {
+  const row = document.getElementById('app-update-row');
+  const status = document.getElementById('app-update-status');
+  if (row?.disabled) return;
+
+  if (row) row.disabled = true;
+  if (status) status.textContent = '正在查询最新正式版本…';
+  triggerHaptic('light');
+
+  try {
+    const result = await updateService.check();
+    const versionLabel = document.getElementById('app-current-version');
+    if (versionLabel) versionLabel.textContent = `v${result.currentVersion}`;
+
+    if (!result.hasUpdate) {
+      availableAppUpdate = null;
+      if (status) status.textContent = `已是最新版 · v${result.currentVersion}`;
+      showToast('当前已经是最新版本');
+      return;
+    }
+
+    availableAppUpdate = result;
+    if (status) status.textContent = `发现新版本 v${result.latestVersion}`;
+    document.getElementById('app-update-current').textContent = `v${result.currentVersion}`;
+    document.getElementById('app-update-latest').textContent = `v${result.latestVersion}`;
+    document.getElementById('app-update-description').textContent = result.title;
+    const downloadButton = document.getElementById('app-update-download');
+    if (downloadButton) downloadButton.textContent = result.apkUrl ? '下载更新' : '查看发布页';
+    document.getElementById('app-update-modal').style.display = 'flex';
+    triggerHaptic('medium');
+  } catch (error) {
+    if (status) status.textContent = '暂时无法检查更新，请稍后重试';
+    showToast(`检查更新失败：${error.message}`);
+  } finally {
+    if (row) row.disabled = false;
+  }
+};
+
+window.closeAppUpdateModal = function() {
+  document.getElementById('app-update-modal').style.display = 'none';
+};
+
+window.downloadAppUpdate = async function() {
+  if (!availableAppUpdate) return;
+  const button = document.getElementById('app-update-download');
+  if (button) button.disabled = true;
+  try {
+    await updateService.openDownload(availableAppUpdate);
+    document.getElementById('app-update-note').textContent = '安装包已开始下载。下载完成后，请在系统提示中确认安装。';
+  } catch (error) {
+    showToast(`无法打开下载地址：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+};
 
 window.testSupabaseConnection = async function() {
   const url = document.getElementById('cfg-supabase-url').value.trim();

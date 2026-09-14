@@ -8,6 +8,10 @@ const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'android-app/index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'android-app/src/app.js'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'android-app/src/style.css'), 'utf8');
+const updater = fs.readFileSync(path.join(root, 'android-app/src/update.js'), 'utf8');
+const androidGradle = fs.readFileSync(path.join(root, 'android-app/android/app/build.gradle'), 'utf8');
+const apkWorkflow = fs.readFileSync(path.join(root, '.github/workflows/build_apk.yml'), 'utf8');
+const androidPackage = JSON.parse(fs.readFileSync(path.join(root, 'android-app/package.json'), 'utf8'));
 
 test('starry Offer artwork is wired to web and Android launcher icons', () => {
   assert.match(html, /rel="icon"[^>]+href="\/offerpilot-icon\.png"/);
@@ -41,6 +45,41 @@ test('manual stage flow uses a compact professional sheet without emoji decorati
   assert.doesNotMatch(modal, /[✨📬📝📊⏳🎯🏆👥🎉⚡]/u);
   assert.match(app, /existingApp \? '推进新环节' : '新建求职档案'/);
   assert.match(styles, /#manual-stage-modal \.manual-status-group/);
+});
+
+test('settings exposes a GitHub Release update flow with semantic version comparison', () => {
+  assert.match(html, /id="app-update-row"[^>]+onclick="window\.checkForAppUpdate\(\)"/);
+  assert.match(html, /id="app-update-modal"/);
+  assert.match(html, /id="app-update-download"[^>]+onclick="window\.downloadAppUpdate\(\)"/);
+  assert.match(app, /updateService\.check\(\)/);
+  assert.match(app, /updateService\.openDownload\(availableAppUpdate\)/);
+  assert.match(updater, /releases\/latest/);
+  assert.match(updater, /browser_download_url/);
+
+  const start = updater.indexOf('export function normalizeVersion');
+  const end = updater.indexOf('\nasync function getCurrentVersion', start);
+  const context = {};
+  vm.runInNewContext(
+    `${updater.slice(start, end).replaceAll('export ', '')}; this.compare = compareVersions;`,
+    context
+  );
+  assert.equal(context.compare('3.5.10', '3.5.9'), 1);
+  assert.equal(context.compare('v3.5.4', '3.5.4'), 0);
+  assert.equal(context.compare('3.5.3', '3.5.4'), -1);
+});
+
+test('Android release build uses persistent signing and tag-derived version codes', () => {
+  assert.equal(androidPackage.version, '3.5.5');
+  assert.match(androidGradle, /OFFERPILOT_VERSION_NAME/);
+  assert.match(androidGradle, /OFFERPILOT_VERSION_CODE/);
+  assert.match(androidGradle, /signingConfig signingConfigs\.release/);
+  for (const secret of ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']) {
+    assert.match(apkWorkflow, new RegExp(secret));
+  }
+  assert.match(apkWorkflow, /assembleRelease/);
+  assert.doesNotMatch(apkWorkflow, /assembleDebug/);
+  assert.match(apkWorkflow, /OfferPilot-v\$\{\{ env\.OFFERPILOT_VERSION_NAME \}\}-android\.apk/);
+  assert.match(apkWorkflow, /offerpilot-update\.json/);
 });
 
 test('mobile shell exposes four small-screen primary destinations', () => {

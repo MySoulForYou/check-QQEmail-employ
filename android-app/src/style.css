@@ -2048,6 +2048,51 @@ button.setting-list-row { cursor: pointer; }
 .setting-meta-row { min-height: 52px; padding-left: 16px; }
 .setting-meta-row .setting-row-copy strong { font-size: .75rem; }
 .setting-meta-row .setting-row-copy small { font-size: .59rem; }
+.app-update-row:disabled { opacity: .64; cursor: wait; }
+.app-update-row .setting-row-value { font-weight: 750; }
+
+.app-update-overlay { padding: 20px; }
+.app-update-card {
+  max-width: 390px;
+  padding: 24px 22px 20px;
+  align-items: center;
+  border: 1px solid rgba(230, 220, 211, .9);
+  border-radius: 24px;
+  text-align: center;
+}
+.app-update-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: #F5EEE4;
+  color: #8B6530;
+}
+.app-update-mark svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.app-update-kicker { margin-top: 14px; color: #9A8C82; font-size: .58rem; font-weight: 800; letter-spacing: .14em; }
+.app-update-card h3 { margin-top: 4px; font-size: 1.25rem; font-weight: 850; letter-spacing: -.03em; }
+.app-update-card > p { margin-top: 6px; color: var(--text-sub); font-size: .7rem; line-height: 1.5; }
+.app-update-versions {
+  width: 100%;
+  margin-top: 18px;
+  padding: 13px 15px;
+  display: grid;
+  grid-template-columns: 1fr 24px 1fr;
+  align-items: center;
+  gap: 8px;
+  border-radius: 16px;
+  background: #F8F5F1;
+}
+.app-update-versions span, .app-update-versions small, .app-update-versions strong { display: block; }
+.app-update-versions small { color: var(--text-sub); font-size: .58rem; }
+.app-update-versions strong { margin-top: 3px; color: var(--text-main); font-size: .86rem; }
+.app-update-versions span:last-child strong { color: #2E765F; }
+.app-update-versions svg { width: 20px; fill: none; stroke: #A89B92; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.app-update-card .app-update-note { margin: 12px 6px 0; font-size: .62rem; }
+.app-update-actions { width: 100%; margin-top: 18px; display: grid; grid-template-columns: .8fr 1.2fr; gap: 8px; }
+.app-update-actions button { min-height: 43px; border-radius: 12px; }
+.app-update-actions .btn-submit-m:disabled { opacity: .62; cursor: wait; }
 
 .settings-disclosure { border-top: 1px solid var(--border-subtle); }
 .settings-disclosure > summary { list-style: none; cursor: pointer; }

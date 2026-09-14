@@ -416,10 +416,14 @@
                 <span class="setting-row-copy"><strong>本地缓存</strong><small>离线时保留最近数据</small></span>
                 <span class="setting-row-value" id="telemetry-cache-count">已缓存 0 项</span>
               </div>
-              <div class="setting-list-row setting-meta-row">
-                <span class="setting-row-copy"><strong>版本</strong><small>OfferPilot 移动端</small></span>
-                <span class="setting-row-value">v3.5.2</span>
-              </div>
+              <button class="setting-list-row app-update-row" id="app-update-row" type="button" onclick="window.checkForAppUpdate()">
+                <span class="setting-row-icon setting-row-icon-gold" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 4v10M8 10l4 4 4-4M5 18h14"/></svg>
+                </span>
+                <span class="setting-row-copy"><strong>检查更新</strong><small id="app-update-status">检查 GitHub 上的最新正式版本</small></span>
+                <span class="setting-row-value" id="app-current-version">v3.5.5</span>
+                <svg class="setting-row-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -766,6 +770,28 @@
         <span class="nav-title">我的</span>
       </button>
     </nav>
+
+    <!-- 应用版本更新弹窗 -->
+    <div class="modal-overlay app-update-overlay" id="app-update-modal" style="display:none;">
+      <div class="modal-card app-update-card" role="dialog" aria-modal="true" aria-labelledby="app-update-title">
+        <div class="app-update-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>
+        </div>
+        <span class="app-update-kicker">NEW VERSION</span>
+        <h3 id="app-update-title">发现新版本</h3>
+        <p id="app-update-description">新版安装包已经准备好。</p>
+        <div class="app-update-versions" aria-label="版本升级信息">
+          <span><small>当前版本</small><strong id="app-update-current">v3.5.5</strong></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
+          <span><small>最新版本</small><strong id="app-update-latest">v3.5.5</strong></span>
+        </div>
+        <p class="app-update-note" id="app-update-note">下载后，Android 会打开系统安装确认页面。</p>
+        <div class="app-update-actions">
+          <button class="btn-cancel-m" type="button" onclick="window.closeAppUpdateModal()">稍后更新</button>
+          <button class="btn-submit-m" id="app-update-download" type="button" onclick="window.downloadAppUpdate()">下载更新</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 全局 Toast 提示容器 -->
     <div class="toast-container" id="app-toast-container"></div>
