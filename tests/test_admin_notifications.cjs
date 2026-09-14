@@ -73,3 +73,10 @@ test('result and cancel events update status without creating round metadata', (
     assert.equal(Object.hasOwn(resultUpdate, 'seq'), false);
     assert.equal(Object.hasOwn(cancelUpdate, 'seq'), false);
 });
+
+test('approved notifications choose a round from visible stages only', () => {
+    const start = source.indexOf('async function approveStageNotification');
+    const end = source.indexOf('async function ignoreStageNotification');
+    const approvalSource = source.slice(start, end);
+    assert.match(approvalSource, /stage_status !== 'ignored' && stage\.stage_status !== 'pending'/);
+});
