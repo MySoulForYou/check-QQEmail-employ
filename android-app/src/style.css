@@ -2675,28 +2675,34 @@ button.daily-primary-action { background: var(--accent-dark); color: #fff; }
 #view-applications .porcelain-job-card { border-radius: 17px; padding: 11px 12px 9px; box-shadow: 0 4px 13px rgba(91, 72, 52, .045); }
 #view-applications .porcelain-job-card.is-focused { box-shadow: 0 5px 15px rgba(180, 110, 0, .075); }
 #view-applications .card-top-info { margin-bottom: 0; }
-#view-applications .company-name-bold { font-size: .87rem; }
-#view-applications .company-pos-sub { margin-top: 1px; font-size: .68rem; }
+#view-applications .company-title-line { min-width: 0; display: flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+#view-applications .company-name-bold { flex: 0 1 auto; max-width: 52%; font-size: .85rem; }
+#view-applications .company-title-separator { flex: 0 0 auto; color: #C5B9B0; font-size: .65rem; }
+#view-applications .company-pos-sub { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #9B6D5E; font-size: .7rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 #view-applications .company-stage-sub { margin-top: 2px; font-size: .61rem; }
 #view-applications .mobile-focus-toggle { width: 27px; height: 27px; flex-basis: 27px; font-size: 14px; box-shadow: none; }
 #view-applications .mobile-card-schedule-row { gap: 6px; margin: 7px 0 5px; overflow: hidden; }
-#view-applications .stage-tag-mini { max-width: 48%; overflow: hidden; padding: 1px 6px; font-size: .61rem; text-overflow: ellipsis; }
-#view-applications .time-pill-badge { max-width: 52%; padding: 2px 7px; font-size: .6rem; text-align: left; }
-#view-applications .mobile-card-schedule-row .time-pill-badge { max-width: 52%; }
+#view-applications .stage-tag-mini { max-width: 38%; overflow: hidden; padding: 1px 6px; font-size: .61rem; text-overflow: ellipsis; }
+#view-applications .time-pill-badge { max-width: 46%; padding: 2px 7px; font-size: .6rem; text-align: left; }
+#view-applications .mobile-card-schedule-row .time-pill-badge { max-width: 46%; }
+#view-applications .mobile-card-status-action { margin-left: auto; }
 #view-applications .parallel-stage-notice { display: flex; align-items: center; gap: 3px; margin: 3px 0; overflow: hidden; color: var(--accent-rose); font-size: .6rem; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
 #view-applications .card-bottom-row { min-height: 31px; margin-top: 3px; padding-top: 6px; }
-#view-applications .compact-card-progress { min-width: 0; display: flex; align-items: center; gap: 8px; }
-#view-applications .stepper-pipeline-container { width: auto; min-width: 8px; margin: 0; padding: 0; }
-#view-applications .stepper-track-row { width: auto; justify-content: flex-start; gap: 5px; }
-#view-applications .stepper-track-row::before { top: 3px; left: 4px; right: 4px; height: 1.5px; }
+#view-applications .compact-card-progress { min-width: 0; flex: 1; display: flex; align-items: center; overflow: hidden; }
+#view-applications .stepper-pipeline-container { min-width: 0; width: 100%; margin: 0; padding: 0 1px 1px; overflow-x: auto; scrollbar-width: none; }
+#view-applications .stepper-pipeline-container::-webkit-scrollbar { display: none; }
+#view-applications .stepper-track-row { width: max-content; justify-content: flex-start; gap: 4px; }
+#view-applications .stepper-track-row::before { display: none; }
 #view-applications .stepper-track-row.single-node { padding-left: 0; }
-#view-applications .stepper-node-item { width: 8px; height: 8px; display: block; }
-#view-applications .stepper-dot { width: 8px; height: 8px; border: 2px solid #fff; box-shadow: 0 0 0 1px #D8D0C8; font-size: 0; }
-#view-applications .stepper-dot.done { background: #70665E; }
-#view-applications .stepper-dot.active { background: var(--accent-emerald); box-shadow: 0 0 0 2px rgba(16, 185, 129, .18); }
-#view-applications .stepper-overflow { position: relative; z-index: 2; color: var(--text-muted); font-size: .55rem; }
-#view-applications .card-candidate-name { overflow: hidden; font-size: .59rem; white-space: nowrap; text-overflow: ellipsis; }
-#view-applications .card-actions-right { gap: 4px; }
+#view-applications .stepper-stage-box { width: 55px; height: 31px; padding: 3px 4px; display: flex; flex: 0 0 55px; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #DED6CF; border-radius: 8px; background: #F7F4F1; color: var(--text-sub); }
+#view-applications .stepper-stage-box.done { border-color: #D7D0C9; background: #F4F1EE; }
+#view-applications .stepper-stage-box.active { border-color: #8ED8BA; background: #EAF8F1; color: #167A59; }
+#view-applications .stepper-stage-box.offered { border-color: #E8C15F; background: #FFF5D9; color: #99600B; }
+#view-applications .stepper-stage-box.failed { border-color: #E7C8C3; background: #FAEEEE; color: #A45148; }
+#view-applications .stepper-stage-name { width: 100%; overflow: hidden; font-size: .53rem; font-weight: 750; line-height: 1.1; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+#view-applications .stepper-stage-state { margin-top: 2px; font-size: .47rem; line-height: 1; opacity: .8; }
+#view-applications .stepper-connector { flex: 0 0 auto; align-self: center; color: #C4BAB2; font-size: .72rem; }
+#view-applications .card-actions-right { position: relative; z-index: 2; flex-shrink: 0; gap: 4px; background: #fff; }
 #view-applications .btn-card-check { width: 27px; height: 27px; border-radius: 9px; font-size: .72rem; }
 #view-applications .btn-card-more { min-height: 27px; padding: 0 3px 0 7px; border: 0; background: transparent; color: var(--text-sub); font-size: .63rem; }
 #view-applications .btn-card-more span { margin-left: 2px; font-size: .9rem; }

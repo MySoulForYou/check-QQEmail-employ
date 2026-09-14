@@ -113,13 +113,17 @@ test('application cards place readable time below the title and open a detail di
   assert.match(styles, /\.application-detail-modal\.is-open/);
 });
 
-test('application list cards use a compact mobile summary instead of a full labeled pipeline', () => {
+test('application list cards combine company and position while showing compact labeled stages', () => {
+  assert.match(app, /class="company-title-line"/);
+  assert.match(app, /class="company-title-separator">·/);
   assert.match(app, /class="compact-card-progress"/);
-  assert.match(app, /const visibleStages = validStages\.slice\(-5\)/);
-  assert.match(app, />\$\{visibleRoundCount\} 轮 · \$\{item\.stages\.length\} 个环节</);
+  assert.match(app, /class="stepper-stage-box \$\{itemClass\}"/);
+  assert.match(app, /class="stepper-stage-name">\$\{escapeHtml\(rawName\)\}/);
+  assert.match(app, /class="stepper-stage-state">\$\{stateLabel\}/);
   assert.doesNotMatch(app, /求职时序: 第 \$\{item\.stages\.length\} 轮推进/);
   assert.match(styles, /#view-applications \.porcelain-job-card \{[^}]*padding: 11px 12px 9px/);
-  assert.match(styles, /#view-applications \.stepper-dot \{[^}]*width: 8px; height: 8px/);
+  assert.match(styles, /#view-applications \.stepper-stage-box \{[^}]*width: 55px; height: 31px/);
+  assert.match(styles, /#view-applications \.stepper-pipeline-container[^}]*overflow-x: auto/);
 });
 
 test('application status filter returns when the user scrolls upward', () => {
