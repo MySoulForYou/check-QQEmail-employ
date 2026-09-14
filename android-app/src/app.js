@@ -39,6 +39,7 @@ const state = {
   isDrawerOpen: false,
   urgentBannerExpanded: false,
   dailyFocusedExpanded: true,
+  timelineReturnFocus: null,
   calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   selectedCalendarKey: formatCalendarKey(new Date())
 };
@@ -91,6 +92,12 @@ function initNavigation() {
       triggerHaptic('light');
     });
   }
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.getElementById('view-timeline')?.classList.contains('is-open')) {
+      window.closeCompanyTimelineModal();
+    }
+  });
 }
 
 function switchToTab(tabId) {
@@ -141,8 +148,7 @@ window.switchToTab = switchToTab;
 
 // 全景时间 ➔ 返回控制台
 window.backToDashboard = function() {
-  switchToTab('view-applications');
-  triggerHaptic('light');
+  window.closeCompanyTimelineModal();
 };
 
 // ==================== 3. 初始化与搜索过滤 ====================
@@ -777,8 +783,12 @@ function renderDashboard() {
           </div>
           <div class="mobile-card-top-actions">
             <button type="button" class="mobile-focus-toggle${item.is_focused ? ' is-active' : ''}" onclick="event.stopPropagation(); window.toggleApplicationFocus('${item.id}', this)" aria-label="${item.is_focused ? '取消重点关心' : '设为重点关心'}" aria-pressed="${Boolean(item.is_focused)}">★</button>
-            ${timePillHtml}
           </div>
+        </div>
+
+        <div class="mobile-card-schedule-row">
+          <span class="mobile-card-schedule-label">${isScheduled ? '下一安排' : '当前状态'}</span>
+          ${timePillHtml}
         </div>
 
         <!-- 水平 Stepper 求职链路 -->
@@ -1103,8 +1113,26 @@ window.copyMeetingCredentials = function() {
 // ==================== 8. 企业求职全景时间线 (Company Timeline) ====================
 window.viewCompanyTimeline = function(appId) {
   state.currentTimelineAppId = appId;
+  state.timelineReturnFocus = document.activeElement;
   renderTimelineView(appId);
-  switchToTab('view-timeline');
+  const modal = document.getElementById('view-timeline');
+  if (!modal) return;
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('application-detail-open');
+  requestAnimationFrame(() => modal.querySelector('.timeline-dialog-close')?.focus());
+  triggerHaptic('light');
+};
+
+window.closeCompanyTimelineModal = function() {
+  const modal = document.getElementById('view-timeline');
+  if (!modal?.classList.contains('is-open')) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('application-detail-open');
+  const returnFocus = state.timelineReturnFocus;
+  state.timelineReturnFocus = null;
+  if (returnFocus && typeof returnFocus.focus === 'function') requestAnimationFrame(() => returnFocus.focus());
   triggerHaptic('light');
 };
 
@@ -1175,10 +1203,12 @@ function renderTimelineView(appId) {
     .sort((a, b) => (b.seq || 1) - (a.seq || 1));
   const latestStage = appStages[0];
   const latestSeq = latestStage ? (latestStage.seq || 1) : 0;
+  const latestStages = appStages.filter(stage => (stage.seq || 1) === latestSeq);
   const displaySeqByStoredSeq = buildVisibleStageSequenceMap(appStages);
 
   document.getElementById('timeline-company-name').textContent = targetApp.company;
   document.getElementById('timeline-position-name').textContent = targetApp.position || '校招工程师';
+  document.getElementById('timeline-stage-count').textContent = `${displaySeqByStoredSeq.size} 轮 · ${appStages.length} 个环节`;
 
   const statusBadge = document.getElementById('timeline-status-badge');
   if (latestStage) {
@@ -1649,11 +1679,11 @@ function formatShortScheduleTime(text) {
   if (!text || text === '待定') return '待定';
   const str = String(text).trim();
 
-  // 1. 匹配标准 YYYY-MM-DD 日期
-  const dateMatch = str.match(/\d{4}-\d{2}-\d{2}/);
-  if (dateMatch) {
-    if (str.includes('截止')) return `${dateMatch[0]} 截止`;
-    return dateMatch[0];
+  // 1. 手机卡片省略年份，保留最有辨识度的月、日和时间。
+  const parsed = parseScheduleDate(str);
+  if (parsed) {
+    const timeMatch = str.match(/\b(\d{1,2}:\d{2})\b/);
+    return `${parsed.getMonth() + 1}月${parsed.getDate()}日${timeMatch ? ` ${timeMatch[1]}` : ''}`;
   }
 
   // 2. 匹配 MM-DD 日期或时间

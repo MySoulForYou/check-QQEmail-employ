@@ -262,54 +262,37 @@
         </div>
       </section>
 
-      <!-- ================= 视图 C: 企业求职全景时间线 (Timeline) ================= -->
-      <section id="view-timeline" class="tab-view">
-        <header class="app-topbar timeline-topbar">
-          <!-- 全景时间顶部导航与快速搜索栏 -->
-          <div class="timeline-top-nav-row">
-            <button class="btn-timeline-back" onclick="window.backToDashboard()" title="返回申请列表">
-              <span class="back-arrow">←</span>
-              <span>返回申请</span>
-            </button>
-            <div class="timeline-search-wrap">
-              <span class="timeline-search-lens">🔍</span>
-              <input type="text" id="timeline-search-input" placeholder="搜索已建档企业 / 岗位..." autocomplete="off" spellcheck="false">
-              <button class="search-clear-x" id="timeline-search-clear" style="display:none;">✕</button>
+      <!-- ================= 企业求职档案弹窗 (Timeline Dialog) ================= -->
+      <section id="view-timeline" class="application-detail-modal" aria-hidden="true">
+        <button class="application-detail-backdrop" type="button" onclick="window.closeCompanyTimelineModal()" aria-label="关闭申请档案"></button>
+        <div class="application-detail-sheet" role="dialog" aria-modal="true" aria-labelledby="timeline-position-name">
+          <div class="application-detail-handle" aria-hidden="true"></div>
+          <header class="timeline-dialog-header">
+            <div class="timeline-dialog-meta">
+              <div class="hero-company-badge" id="timeline-header-badge">
+                <span class="badge-name" id="timeline-company-name">请选择企业</span>
+              </div>
+              <span class="timeline-stage-count" id="timeline-stage-count">0 个环节</span>
+              <button class="timeline-dialog-close" type="button" onclick="window.closeCompanyTimelineModal()" aria-label="关闭申请档案">×</button>
             </div>
-          </div>
-
-          <!-- 横向企业快速滑动切换栏 (仅展示已建档准入的企业) -->
-          <div class="timeline-company-scroller" id="timeline-company-chips">
-            <!-- 动态注入已建档企业药丸 -->
-          </div>
-
-          <!-- 企业全景 Hero 仪式感展示区 -->
-          <div class="timeline-hero-display" id="timeline-hero-box">
-            <div class="hero-company-badge" id="timeline-header-badge">
-              <span class="badge-name" id="timeline-company-name">请选择企业</span>
-            </div>
-            <h1 class="hero-position-title" id="timeline-position-name">后端开发工程师</h1>
+            <h1 class="hero-position-title" id="timeline-position-name">求职岗位</h1>
             <div class="hero-status-pill-wrap">
-              <span class="hero-status-pill" id="timeline-status-badge">⏳ 正在同步最新状态...</span>
+              <span class="hero-status-pill" id="timeline-status-badge">正在同步最新状态…</span>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <!-- 垂直发光时间轴节点容器 -->
-        <div class="timeline-scroll-area">
-          <div class="luminous-timeline-track" id="timeline-nodes-container">
-            <!-- 动态注入发光时间轴节点与气泡对话框卡片 -->
+          <div class="timeline-scroll-area">
+            <div class="luminous-timeline-track" id="timeline-nodes-container"></div>
           </div>
-        </div>
 
-        <!-- 底部固定浮动操作栏 -->
-        <div class="timeline-bottom-actions">
-          <button class="btn-floating-pill btn-advance" onclick="window.openManualModalForCurrent()">
-            <span class="action-icon">＋</span> 推进新环节
-          </button>
-          <button class="btn-floating-pill btn-edit" onclick="window.openEditModalForCurrent()">
-            <span class="action-icon">✏️</span> 修正环节档案
-          </button>
+          <div class="timeline-bottom-actions">
+            <button class="btn-floating-pill btn-advance" onclick="window.openManualModalForCurrent()">
+              <span class="action-icon">＋</span> 推进新环节
+            </button>
+            <button class="btn-floating-pill btn-edit" onclick="window.openEditModalForCurrent()">
+              <span class="action-icon">✎</span> 修正档案
+            </button>
+          </div>
         </div>
       </section>
 

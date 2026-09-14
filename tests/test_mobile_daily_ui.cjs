@@ -71,3 +71,14 @@ test('mobile timeline numbers visible rounds continuously while preserving paral
   assert.equal(map.has(2), false);
   assert.equal(map.get(3), 2);
 });
+
+test('application cards place readable time below the title and open a detail dialog', () => {
+  assert.match(app, /class="mobile-card-schedule-row"/);
+  assert.match(styles, /\.mobile-card-schedule-row \.time-pill-badge[\s\S]*max-width: none/);
+  assert.match(app, /return `\$\{parsed\.getMonth\(\) \+ 1\}月\$\{parsed\.getDate\(\)\}日/);
+  assert.match(html, /class="application-detail-sheet" role="dialog" aria-modal="true"/);
+  assert.match(app, /modal\.classList\.add\('is-open'\)/);
+  assert.match(app, /window\.closeCompanyTimelineModal = function/);
+  assert.match(app, /const latestStages = appStages\.filter/);
+  assert.match(styles, /\.application-detail-modal\.is-open/);
+});
