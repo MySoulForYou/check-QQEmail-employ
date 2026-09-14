@@ -30,6 +30,19 @@ test('starry Offer artwork is wired to web and Android launcher icons', () => {
   }
 });
 
+test('manual stage flow uses a compact professional sheet without emoji decoration', () => {
+  const start = html.indexOf('id="manual-stage-modal"');
+  const end = html.indexOf('id="edit-stage-modal"', start);
+  const modal = html.slice(start, end);
+  assert.match(modal, /class="modal-card manual-stage-card"/);
+  assert.match(modal, /id="manual-stage-title">推进新环节/);
+  assert.match(modal, /class="radio-card-group manual-status-group"/);
+  assert.match(modal, />保存并推进</);
+  assert.doesNotMatch(modal, /[✨📬📝📊⏳🎯🏆👥🎉⚡]/u);
+  assert.match(app, /existingApp \? '推进新环节' : '新建求职档案'/);
+  assert.match(styles, /#manual-stage-modal \.manual-status-group/);
+});
+
 test('mobile shell exposes four small-screen primary destinations', () => {
   const nav = html.match(/<nav class="bottom-nav-bar">([\s\S]*?)<\/nav>/)?.[1] || '';
   assert.equal((nav.match(/class="nav-btn/g) || []).length, 4);

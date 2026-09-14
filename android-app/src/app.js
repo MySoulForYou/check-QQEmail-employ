@@ -1398,10 +1398,21 @@ function openManualModal(defaultCompany = '') {
   document.getElementById('m-schedule-type').value = 'deadline';
   document.getElementById('m-meeting').value = '';
   const existingApp = state.applications.find(app => app.company === defaultCompany);
+  const title = document.getElementById('manual-stage-title');
+  const subtitle = document.getElementById('manual-stage-subtitle');
+  const submitButton = document.getElementById('btn-m-submit');
+  if (title) title.textContent = existingApp ? '推进新环节' : '新建求职档案';
+  if (subtitle) subtitle.textContent = existingApp
+    ? `为 ${existingApp.company} 补充下一轮安排`
+    : '填写申请信息并建立第一条求职进度';
+  if (submitButton) submitButton.textContent = existingApp ? '保存并推进' : '创建求职档案';
+  document.querySelectorAll('#manual-stage-modal .p-chip').forEach(chip => chip.classList.remove('is-selected'));
   const positionWrap = document.getElementById('m-stage-position-wrap');
   if (positionWrap) positionWrap.style.display = existingApp ? 'block' : 'none';
   const positionSelect = document.getElementById('m-stage-position');
   if (positionSelect) positionSelect.value = 'next';
+  const scheduledStatus = document.querySelector('input[name="m-status-radio"][value="scheduled"]');
+  if (scheduledStatus) scheduledStatus.checked = true;
   document.getElementById('manual-stage-modal').style.display = 'flex';
   triggerHaptic('light');
 }
@@ -1413,6 +1424,9 @@ window.closeManualModal = function() {
 window.setMPreset = function(name) {
   document.getElementById('m-stage-name').value = name;
   document.getElementById('m-schedule-type').value = /(面试|一面|二面|终面|HR面|宣讲)/i.test(name) ? 'start' : 'deadline';
+  document.querySelectorAll('#manual-stage-modal .p-chip').forEach(chip => {
+    chip.classList.toggle('is-selected', chip.dataset.preset === name);
+  });
   triggerHaptic('light');
 };
 
@@ -1429,7 +1443,7 @@ window.submitManualStage = async function() {
   const positionMode = document.getElementById('m-stage-position')?.value || 'next';
 
   if (!company || !stageName) {
-    showToast('⚠️ 公司名称与推进环节类型为必填项');
+    showToast('请填写公司名称与推进环节类型');
     return;
   }
 
@@ -1439,11 +1453,11 @@ window.submitManualStage = async function() {
       { company, department: dept, position },
       { stage_name: stageName, stage_status: stageStatus, schedule_time: scheduleTime, schedule_type: scheduleTime ? scheduleType : 'unknown', meeting_info: meeting, parallel_with_latest: positionMode === 'parallel' }
     );
-    showToast(`✨ 成功为【${company}】建档并推进【${stageName}】！`);
+    showToast(`已为【${company}】保存【${stageName}】环节`);
     window.closeManualModal();
     loadAllData(false);
   } catch (err) {
-    showToast(`⚠️ 保存失败: ${err.message}`);
+    showToast(`保存失败：${err.message}`);
   }
 };
 

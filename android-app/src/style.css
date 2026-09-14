@@ -1757,6 +1757,197 @@ body.application-detail-open { overflow: hidden; }
   cursor: pointer;
 }
 
+/* 推进新环节：紧凑、无装饰符号的专业移动表单 */
+#manual-stage-modal {
+  align-items: flex-end;
+  padding: 0;
+}
+
+#manual-stage-modal .manual-stage-card {
+  max-width: 520px;
+  max-height: min(92vh, 780px);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -12px 40px rgba(46, 35, 25, .16);
+  overflow: hidden;
+}
+
+.manual-stage-top {
+  align-items: flex-start;
+  padding: 18px 20px 14px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FCFAF7 100%);
+}
+
+.manual-stage-heading { min-width: 0; }
+
+.manual-stage-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #8B7D73;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.manual-stage-heading h3 {
+  color: var(--text-main);
+  font-size: 1.16rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.manual-stage-heading p {
+  margin-top: 4px;
+  color: var(--text-sub);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.manual-stage-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #F3EFEB;
+  font-size: 1.22rem;
+  line-height: 1;
+}
+
+#manual-stage-modal .modal-form-body {
+  padding: 14px 20px 18px;
+  gap: 13px;
+  overscroll-behavior: contain;
+}
+
+#manual-stage-modal .form-item-m { gap: 7px; }
+
+#manual-stage-modal .form-item-m > label {
+  color: #51473F;
+  font-size: .72rem;
+  letter-spacing: .01em;
+}
+
+#manual-stage-modal .form-item-m input,
+#manual-stage-modal .form-item-m select {
+  min-height: 44px;
+  padding: 10px 13px;
+  border-color: #E4DDD6;
+  border-radius: 12px;
+  background: #FBFAF8;
+  font-size: .82rem;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+#manual-stage-modal .form-item-m input:focus,
+#manual-stage-modal .form-item-m select:focus {
+  border-color: #8C7A6C;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(91, 73, 61, .09);
+}
+
+#manual-stage-modal .preset-chips-group {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 1px;
+}
+
+#manual-stage-modal .p-chip {
+  min-height: 32px;
+  padding: 5px 4px;
+  border-radius: 9px;
+  background: #F7F4F1;
+  color: #62564D;
+  font-size: .65rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+#manual-stage-modal .p-chip.is-selected {
+  border-color: #322A25;
+  background: #322A25;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+#manual-stage-modal .p-chip.chip-gold:not(.is-selected) {
+  border-color: #E7D2A6;
+  background: #FBF6E9;
+  color: #74572A;
+}
+
+#manual-stage-modal .manual-status-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+#manual-stage-modal .manual-status-group .radio-card-item {
+  min-height: 58px;
+  padding: 10px 12px;
+  gap: 10px;
+  border-radius: 12px;
+  background: #FBFAF8;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+#manual-stage-modal .manual-status-group .radio-card-item:has(input:checked) {
+  border-color: #2C2521;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 1px #2C2521;
+}
+
+#manual-stage-modal .manual-status-group input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: #2C2521;
+}
+
+#manual-stage-modal .manual-status-group .radio-text {
+  min-width: 0;
+  flex: 1;
+}
+
+#manual-stage-modal .manual-status-group .r-title {
+  font-size: .76rem;
+  line-height: 1.35;
+}
+
+#manual-stage-modal .manual-status-group .r-desc {
+  margin-top: 2px;
+  font-size: .63rem;
+  line-height: 1.35;
+}
+
+.manual-status-tag {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #F0ECE8;
+  color: #786B61;
+  font-size: .58rem;
+  font-weight: 750;
+}
+
+#manual-stage-modal .radio-card-item:has(input:checked) .manual-status-tag {
+  background: #E9F5F0;
+  color: #28755E;
+}
+
+#manual-stage-modal .modal-footer-m {
+  padding: 11px 20px calc(11px + var(--safe-bottom));
+  background: rgba(255, 255, 255, .96);
+}
+
+#manual-stage-modal .btn-cancel-m,
+#manual-stage-modal .btn-submit-m {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 12px;
+}
+
+#manual-stage-modal .btn-cancel-m { min-width: 84px; }
+
 .btn-danger-m {
   padding: 8px 14px;
   border-radius: var(--radius-pill);

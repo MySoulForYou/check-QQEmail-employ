@@ -518,15 +518,16 @@
       </div>
     </div>
 
-    <!-- ==================== 3. ➕ 手动建档 / 推进新环节弹窗 ==================== -->
+    <!-- ==================== 3. 手动建档 / 推进新环节弹窗 ==================== -->
     <div class="modal-overlay" id="manual-stage-modal" style="display:none;">
-      <div class="modal-card">
-        <div class="modal-top">
-          <div class="modal-title-row">
-            <span class="modal-icon">✨</span>
-            <h3>手动建档 / 推进求职环节</h3>
+      <div class="modal-card manual-stage-card" role="dialog" aria-modal="true" aria-labelledby="manual-stage-title">
+        <div class="modal-top manual-stage-top">
+          <div class="manual-stage-heading">
+            <span class="manual-stage-kicker" id="manual-stage-kicker">APPLICATION WORKFLOW</span>
+            <h3 id="manual-stage-title">推进新环节</h3>
+            <p id="manual-stage-subtitle">记录下一轮安排，求职进度将同步更新</p>
           </div>
-          <button class="modal-close" onclick="window.closeManualModal()">&times;</button>
+          <button class="modal-close manual-stage-close" onclick="window.closeManualModal()" aria-label="关闭推进新环节窗口">&times;</button>
         </div>
 
         <div class="modal-form-body">
@@ -548,16 +549,16 @@
           <div class="form-item-m">
             <label>推进环节类型 <span class="req-star">*</span></label>
             <div class="preset-chips-group">
-              <button type="button" class="p-chip" onclick="window.setMPreset('网申提交')">📬 网申提交</button>
-              <button type="button" class="p-chip" onclick="window.setMPreset('在线笔试')">📝 在线笔试</button>
-              <button type="button" class="p-chip" onclick="window.setMPreset('综合测评')">📊 综合测评</button>
-              <button type="button" class="p-chip" onclick="window.setMPreset('技术一面')">⏳ 技术一面</button>
-              <button type="button" class="p-chip" onclick="window.setMPreset('业务二面')">🎯 业务二面</button>
-              <button type="button" class="p-chip" onclick="window.setMPreset('总监终面')">🏆 总监终面</button>
-              <button type="button" class="p-chip" onclick="window.setMPreset('HR面')">👥 HR面</button>
-              <button type="button" class="p-chip chip-gold" onclick="window.setMPreset('录用意向/Offer')">🎉 录用Offer</button>
+              <button type="button" class="p-chip" data-preset="网申提交" onclick="window.setMPreset('网申提交')">网申提交</button>
+              <button type="button" class="p-chip" data-preset="在线笔试" onclick="window.setMPreset('在线笔试')">在线笔试</button>
+              <button type="button" class="p-chip" data-preset="综合测评" onclick="window.setMPreset('综合测评')">综合测评</button>
+              <button type="button" class="p-chip" data-preset="技术一面" onclick="window.setMPreset('技术一面')">技术一面</button>
+              <button type="button" class="p-chip" data-preset="业务二面" onclick="window.setMPreset('业务二面')">业务二面</button>
+              <button type="button" class="p-chip" data-preset="总监终面" onclick="window.setMPreset('总监终面')">总监终面</button>
+              <button type="button" class="p-chip" data-preset="HR面" onclick="window.setMPreset('HR面')">HR 面</button>
+              <button type="button" class="p-chip chip-gold" data-preset="录用意向/Offer" onclick="window.setMPreset('录用意向/Offer')">录用 Offer</button>
             </div>
-            <input type="text" id="m-stage-name" placeholder="点击上方药丸或直接输入环节名称">
+            <input type="text" id="m-stage-name" placeholder="选择常用类型，或输入自定义环节">
           </div>
 
           <div class="form-item-m">
@@ -590,20 +591,22 @@
 
           <div class="form-item-m">
             <label>当前环节状态</label>
-            <div class="radio-card-group">
+            <div class="radio-card-group manual-status-group">
               <label class="radio-card-item">
                 <input type="radio" name="m-status-radio" value="scheduled" checked>
                 <div class="radio-text">
-                  <div class="r-title">⏳ 待参加 / 待作答</div>
-                  <div class="r-desc">加入待办日程 & 推送首页提醒</div>
+                  <div class="r-title">待参加 / 待作答</div>
+                  <div class="r-desc">加入待办日程，并在首页提醒</div>
                 </div>
+                <span class="manual-status-tag">待处理</span>
               </label>
               <label class="radio-card-item">
                 <input type="radio" name="m-status-radio" value="awaiting_result">
                 <div class="radio-text">
-                  <div class="r-title">🎯 已参加 / 等待结果</div>
+                  <div class="r-title">已参加 / 等待结果</div>
                   <div class="r-desc">本轮已完成，等待官方反馈</div>
                 </div>
+                <span class="manual-status-tag">等结果</span>
               </label>
             </div>
           </div>
@@ -613,7 +616,7 @@
 
         <div class="modal-footer-m">
           <button class="btn-cancel-m" onclick="window.closeManualModal()">取消</button>
-          <button class="btn-submit-m" id="btn-m-submit" onclick="window.submitManualStage()">⚡️ 立即建档保存</button>
+          <button class="btn-submit-m" id="btn-m-submit" onclick="window.submitManualStage()">保存并推进</button>
         </div>
       </div>
     </div>
