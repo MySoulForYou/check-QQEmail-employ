@@ -38,6 +38,20 @@
             </div>
           </section>
 
+          <section class="daily-section daily-focused-section" aria-labelledby="daily-focused-title">
+            <div class="daily-section-heading daily-collapsible-heading">
+              <div class="daily-focused-heading-copy">
+                <h2 id="daily-focused-title">重点申请</h2>
+                <span id="daily-focused-count">0 项</span>
+              </div>
+              <button class="daily-collapse-toggle" id="daily-focused-toggle" type="button" onclick="window.toggleDailyFocusedApplications()" aria-expanded="true" aria-controls="daily-focused-list">
+                <span>收起</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 14 5-5 5 5"/></svg>
+              </button>
+            </div>
+            <div class="daily-focused-list" id="daily-focused-list"></div>
+          </section>
+
           <section class="daily-section daily-waiting-section" aria-labelledby="daily-waiting-title">
             <div class="daily-section-heading">
               <h2 id="daily-waiting-title">等待反馈</h2>

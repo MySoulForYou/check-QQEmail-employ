@@ -38,6 +38,7 @@ const state = {
   currentDrawerStageId: null,
   isDrawerOpen: false,
   urgentBannerExpanded: false,
+  dailyFocusedExpanded: true,
   calendarCursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   selectedCalendarKey: formatCalendarKey(new Date())
 };
@@ -433,6 +434,9 @@ function renderDailyHome() {
   const summary = document.getElementById('daily-summary-text');
   const weekStrip = document.getElementById('daily-week-strip');
   const timeline = document.getElementById('daily-timeline-list');
+  const focusedList = document.getElementById('daily-focused-list');
+  const focusedCount = document.getElementById('daily-focused-count');
+  const focusedToggle = document.getElementById('daily-focused-toggle');
   const waitingList = document.getElementById('daily-waiting-list');
   const inbox = document.getElementById('daily-inbox-banner');
   if (!timeline || !waitingList || !weekStrip) return;
@@ -455,6 +459,36 @@ function renderDailyHome() {
   if (profileApplicationCount) profileApplicationCount.textContent = profiledApps.length;
   if (profileActiveCount) profileActiveCount.textContent = profiledApps.filter(({ latest }) => latest?.stage_status === 'scheduled').length;
   if (profileWaitingCount) profileWaitingCount.textContent = profiledApps.filter(({ latest }) => latest?.stage_status === 'awaiting_result').length;
+
+  const focusedApps = profiledApps
+    .filter(({ app }) => app.is_focused)
+    .sort((a, b) => new Date(b.app.updated_at || 0) - new Date(a.app.updated_at || 0));
+  if (focusedCount) focusedCount.textContent = `${focusedApps.length} 项`;
+  if (focusedToggle) {
+    focusedToggle.setAttribute('aria-expanded', String(state.dailyFocusedExpanded));
+    focusedToggle.classList.toggle('is-collapsed', !state.dailyFocusedExpanded);
+    focusedToggle.querySelector('span').textContent = state.dailyFocusedExpanded ? '收起' : '展开';
+  }
+  if (focusedList) {
+    focusedList.hidden = !state.dailyFocusedExpanded;
+    focusedList.innerHTML = focusedApps.length ? focusedApps.slice(0, 3).map(({ app, latest }) => {
+      const status = getDailyFocusedStatus(latest);
+      return `
+        <button type="button" class="daily-focused-card" onclick="window.viewCompanyTimeline('${app.id}')">
+          <span class="daily-focused-star" aria-hidden="true">★</span>
+          <span class="daily-focused-copy">
+            <strong>${escapeHtml(app.company || '未知企业')} · ${escapeHtml(app.position || '求职岗位')}</strong>
+            <small>${escapeHtml(latest?.stage_name || '当前进展')} · ${escapeHtml(status.label)}</small>
+          </span>
+          <span class="daily-focused-status ${status.className}">${escapeHtml(status.shortLabel)}</span>
+          <span class="daily-chevron">›</span>
+        </button>`;
+    }).join('') + (focusedApps.length > 3 ? `
+      <button type="button" class="daily-focused-more" onclick="window.switchToTab('view-applications')">还有 ${focusedApps.length - 3} 项，前往申请页查看</button>` : '') : `
+      <button type="button" class="daily-focused-empty" onclick="window.switchToTab('view-applications')">
+        <span>☆</span><span><strong>暂时没有重点申请</strong><small>在申请页点亮星标后，会集中显示在这里</small></span><b>去标记</b>
+      </button>`;
+  }
 
   const entries = getCalendarEntries();
   const scheduledEntries = entries.filter(item => item.stage?.stage_status === 'scheduled');
@@ -522,6 +556,25 @@ function renderDailyHome() {
     inbox.querySelector('small').textContent = pendingCount > 0 ? '快速核对后再加入申请档案' : 'AI 会在发现新进展时提醒你';
   }
 }
+
+function getDailyFocusedStatus(stage) {
+  if (!stage) return { label: '等待补充进展', shortLabel: '待补充', className: 'is-muted' };
+  if (stage.stage_status === 'scheduled') {
+    const scheduled = formatShortScheduleTime(stage.schedule_time || '时间待定');
+    return { label: scheduled, shortLabel: '待处理', className: 'is-action' };
+  }
+  if (stage.stage_status === 'awaiting_result') return { label: '当前正在等待反馈', shortLabel: '等结果', className: 'is-waiting' };
+  if (stage.stage_status === 'offered') return { label: '已获得录用结果', shortLabel: 'Offer', className: 'is-success' };
+  if (stage.stage_status === 'passed') return { label: '该环节已通过', shortLabel: '已通过', className: 'is-success' };
+  if (stage.stage_status === 'rejected' || stage.stage_status === 'cancelled') return { label: '该申请已结束', shortLabel: '已结束', className: 'is-muted' };
+  return { label: '进展已更新', shortLabel: '进行中', className: 'is-action' };
+}
+
+window.toggleDailyFocusedApplications = function() {
+  state.dailyFocusedExpanded = !state.dailyFocusedExpanded;
+  renderDailyHome();
+  triggerHaptic('light');
+};
 
 function buildDailyTimelineItem(item, isPrimary, isUpcoming) {
   if (item.event) {

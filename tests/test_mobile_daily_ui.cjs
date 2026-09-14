@@ -26,6 +26,17 @@ test('daily home keeps action, waiting feedback and inbox in one vertical flow',
   assert.match(styles, /\.daily-timeline-item/);
 });
 
+test('daily home exposes a collapsible focused applications section', () => {
+  assert.match(html, /id="daily-focused-title"/);
+  assert.match(html, /id="daily-focused-toggle"[\s\S]*aria-expanded="true"/);
+  assert.match(html, /id="daily-focused-list"/);
+  assert.match(app, /\.filter\(\(\{ app \}\) => app\.is_focused\)/);
+  assert.match(app, /window\.toggleDailyFocusedApplications = function/);
+  assert.match(app, /focusedApps\.slice\(0, 3\)/);
+  assert.match(styles, /\.daily-focused-list\[hidden\]/);
+  assert.match(styles, /\.daily-focused-card/);
+});
+
 test('secondary tools remain reachable without crowding the primary navigation', () => {
   assert.match(html, /onclick="window\.switchToTab\('view-review'\)"/);
   assert.match(html, /onclick="window\.switchToTab\('view-events'\)"/);
