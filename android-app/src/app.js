@@ -279,6 +279,7 @@ function setBentoFilter(bentoKey) {
   });
 
   renderDashboard();
+  scrollToFirstFilteredApplication();
 }
 
 function setProgressFilter(progressKey) {
@@ -301,6 +302,26 @@ function setProgressFilter(progressKey) {
   });
 
   renderDashboard();
+  scrollToFirstFilteredApplication();
+}
+
+function scrollToFirstFilteredApplication() {
+  requestAnimationFrame(() => {
+    const list = document.getElementById('dashboard-job-list');
+    if (!list) return;
+    const firstResult = list.querySelector('.porcelain-job-card') || list;
+    const dock = document.getElementById('application-smart-filter-dock');
+    const stickyHeader = document.querySelector('#view-applications .app-topbar');
+    const visibleChromeOffset = Math.max(dock?.offsetHeight || 0, stickyHeader?.offsetHeight || 0) + 14;
+    const targetY = Math.max(0, window.scrollY + firstResult.getBoundingClientRect().top - visibleChromeOffset);
+
+    // 筛选属于一次明确跳转，直接定位可避免保留旧列表的深层滚动位置。
+    window.scrollTo({ top: targetY, behavior: 'instant' });
+    state.dashboardScrollY = targetY;
+    state.applicationLastScrollY = targetY;
+    dock?.classList.remove('is-scroll-hidden');
+    dock?.classList.toggle('is-scroll-docked', targetY > 150);
+  });
 }
 
 // ==================== 4. 数据拉取与统计计算 ====================

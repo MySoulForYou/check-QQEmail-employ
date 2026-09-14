@@ -91,3 +91,15 @@ test('application status filter returns when the user scrolls upward', () => {
   assert.match(styles, /#view-applications \.bento-grid-wrapper[\s\S]*position: sticky/);
   assert.match(styles, /\.bento-grid-wrapper\.is-scroll-docked/);
 });
+
+test('changing an application filter positions the first result below the sticky dock', () => {
+  const bentoStart = app.indexOf('function setBentoFilter');
+  const progressStart = app.indexOf('function setProgressFilter');
+  const scrollStart = app.indexOf('function scrollToFirstFilteredApplication');
+  assert.match(app.slice(bentoStart, progressStart), /renderDashboard\(\);\s*scrollToFirstFilteredApplication\(\);/);
+  assert.match(app.slice(progressStart, scrollStart), /renderDashboard\(\);\s*scrollToFirstFilteredApplication\(\);/);
+  assert.match(app.slice(scrollStart), /querySelector\('\.porcelain-job-card'\)/);
+  assert.match(app.slice(scrollStart), /const visibleChromeOffset = Math\.max\(dock\?\.offsetHeight \|\| 0, stickyHeader\?\.offsetHeight \|\| 0\) \+ 14/);
+  assert.match(app.slice(scrollStart), /getBoundingClientRect\(\)\.top - visibleChromeOffset/);
+  assert.match(app.slice(scrollStart), /behavior: 'instant'/);
+});
