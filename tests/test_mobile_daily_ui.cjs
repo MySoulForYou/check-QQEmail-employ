@@ -9,6 +9,27 @@ const html = fs.readFileSync(path.join(root, 'android-app/index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'android-app/src/app.js'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'android-app/src/style.css'), 'utf8');
 
+test('starry Offer artwork is wired to web and Android launcher icons', () => {
+  assert.match(html, /rel="icon"[^>]+href="\/offerpilot-icon\.png"/);
+  assert.match(html, /rel="apple-touch-icon"[^>]+href="\/offerpilot-icon\.png"/);
+  assert.match(html, /rel="manifest"[^>]+href="\/manifest\.webmanifest"/);
+  assert.ok(fs.existsSync(path.join(root, 'android-app/public/offerpilot-icon.png')));
+  assert.ok(fs.existsSync(path.join(root, 'android-app/assets/icons/offerpilot-starry-master.png')));
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'android-app/public/manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.icons[0].src, '/offerpilot-icon.png');
+  assert.equal(manifest.icons[1].src, '/offerpilot-icon-maskable.png');
+  assert.equal(manifest.icons[1].purpose, 'maskable');
+  assert.ok(fs.existsSync(path.join(root, 'android-app/public/offerpilot-icon-maskable.png')));
+
+  for (const density of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+    const iconDir = path.join(root, `android-app/android/app/src/main/res/mipmap-${density}`);
+    for (const filename of ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']) {
+      assert.ok(fs.statSync(path.join(iconDir, filename)).size > 0, `${density}/${filename} should exist`);
+    }
+  }
+});
+
 test('mobile shell exposes four small-screen primary destinations', () => {
   const nav = html.match(/<nav class="bottom-nav-bar">([\s\S]*?)<\/nav>/)?.[1] || '';
   assert.equal((nav.match(/class="nav-btn/g) || []).length, 4);
