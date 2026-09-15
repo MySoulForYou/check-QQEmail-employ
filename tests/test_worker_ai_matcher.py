@@ -57,7 +57,13 @@ class WorkerAIMatcherTests(unittest.TestCase):
             }
         ]
 
-        result = self.worker.parse_with_ai("【腾讯】一面邀请", "请于9月5日参加面试", active_apps=active_apps)
+        result = self.worker.parse_with_ai(
+            "【腾讯】一面邀请",
+            "请于9月5日参加面试",
+            active_apps=active_apps,
+            sender_name="Moka招聘助手",
+            sender_address="notice@mokahr.com",
+        )
 
         self.assertTrue(result["is_recruitment"])
         self.assertEqual(result["matched_application_id"], "app-uuid-1")
@@ -70,6 +76,11 @@ class WorkerAIMatcherTests(unittest.TestCase):
         self.assertIn("前端开发工程师", user_prompt)
         self.assertIn("email_event_type", user_prompt)
         self.assertIn("reminder", user_prompt)
+        self.assertIn("Moka招聘助手", user_prompt)
+        self.assertIn("notice@mokahr.com", user_prompt)
+        self.assertIn("mokahr.com", user_prompt)
+        self.assertIn("不得把这类平台或代发方自动当作应聘公司", user_prompt)
+        self.assertIn("不能仅凭显示名、邮箱前缀或域名直接认定应聘公司", user_prompt)
 
     @patch("httpx.get")
     @patch("httpx.patch")
