@@ -8,7 +8,7 @@ const source = fs.readFileSync(
     path.join(__dirname, '../client/admin/app.js'),
     'utf8'
 );
-const functionStart = source.indexOf('function generatePipelineHTML(stages)');
+const functionStart = source.indexOf('function generatePipelineHTML(stages, app)');
 const functionEnd = source.indexOf('function getPipelinePopover(trigger)');
 const generatePipelineSource = source.slice(functionStart, functionEnd);
 
@@ -77,3 +77,22 @@ test('counts parallel hidden stages while retaining their round grouping', () =>
     assert.match(html, /性格测评/);
 });
 
+test('shows a terminated pipeline for an archived application without visible stages', () => {
+    const renderPipeline = createRenderer();
+    const html = renderPipeline([], { overall_status: 'archived' });
+
+    assert.match(html, /流程终止/);
+    assert.doesNotMatch(html, /已建档待推进/);
+});
+
+test('archived application status overrides the empty-stage pending fallback', () => {
+    const start = source.indexOf('function getStageStatusMetaRaw(stage, app)');
+    const end = source.indexOf('function stripDecorativeEmoji', start);
+    const context = {};
+    vm.runInNewContext(`${source.slice(start, end)}; this.getMeta = getStageStatusMetaRaw;`, context);
+
+    const meta = context.getMeta(null, { overall_status: 'archived' });
+    assert.equal(meta.category, 'archived');
+    assert.match(meta.badgeText, /流程结束/);
+    assert.doesNotMatch(meta.badgeText, /待处理/);
+});

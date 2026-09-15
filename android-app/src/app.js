@@ -21,6 +21,17 @@ function formatCalendarKey(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function sortReviewItemsByTime(items) {
+  const timestamp = item => {
+    const value = new Date(item.received_at || item.created_at || '').getTime();
+    return Number.isFinite(value) ? value : Number.MIN_SAFE_INTEGER;
+  };
+  return [...items].sort((a, b) =>
+    timestamp(b) - timestamp(a)
+    || String(a.id || '').localeCompare(String(b.id || ''))
+  );
+}
+
 // ==================== 全局状态管理 ====================
 const state = {
   applications: [],
@@ -822,7 +833,8 @@ function renderDashboard() {
   let html = '';
   list.forEach(item => {
     const latest = item.latestStage;
-    const stageName = latest ? latest.stage_name : (item.current_stage_name || '网申提交');
+    const isTerminated = item.overall_status === 'archived' || item.overall_status === 'failed';
+    const stageName = isTerminated ? '流程终止' : (latest ? latest.stage_name : (item.current_stage_name || '网申提交'));
     const scheduleTime = latest ? (latest.schedule_time || '待定') : '待定';
     const isScheduled = latest && latest.stage_status === 'scheduled';
     const isAwaiting = latest && latest.stage_status === 'awaiting_result';
@@ -836,7 +848,9 @@ function renderDashboard() {
 
     // 时间胶囊
     let timePillHtml = '';
-    if (isOffered) {
+    if (isTerminated) {
+      timePillHtml = `<span class="time-pill-badge pill-gray">已归档</span>`;
+    } else if (isOffered) {
       timePillHtml = `<span class="time-pill-badge pill-green" title="${escapeHtml(scheduleTime)}">已获 Offer</span>`;
     } else if (isAwaiting) {
       timePillHtml = `<span class="time-pill-badge pill-gray" title="${escapeHtml(scheduleTime)}">等待结果</span>`;
@@ -858,7 +872,7 @@ function renderDashboard() {
       : '';
 
     // 紧凑进度点：手机卡片只展示推进概况，完整环节留在档案弹窗中。
-    const stepperHtml = buildStepperHtml(item.stages, stageName, isOffered);
+    const stepperHtml = buildStepperHtml(item.stages, stageName, isOffered, isTerminated);
     const visibleRoundCount = new Set(item.stages.map(stage => stage.seq || 1)).size;
 
     html += `
@@ -926,7 +940,7 @@ window.toggleApplicationFocus = async function(id, button) {
 };
 
 // 渲染卡片内紧凑流程框：框内直接显示环节名称与状态，过长时横向轻滑。
-function buildStepperHtml(stages, currentStageName, isOffered) {
+function buildStepperHtml(stages, currentStageName, isOffered, isTerminated = false) {
   // 1. 严格筛选该企业已准入放行的真实有效环节，按 seq 升序排列
   const validStages = (stages || [])
     .filter(s => s.stage_status !== 'ignored' && s.stage_status !== 'pending')
@@ -938,7 +952,7 @@ function buildStepperHtml(stages, currentStageName, isOffered) {
       <div class="stepper-track-row single-node">
         <span class="stepper-stage-box active" title="${escapeHtml(currentStageName || '网申投递')}">
           <span class="stepper-stage-name">${escapeHtml(currentStageName || '网申投递')}</span>
-          <span class="stepper-stage-state">当前</span>
+          <span class="stepper-stage-state">${isTerminated ? '已归档' : '当前'}</span>
         </span>
       </div>
     `;
@@ -987,8 +1001,8 @@ function renderReviewHall() {
   const pendingContainer = document.getElementById('review-pending-list');
   const ignoredContainer = document.getElementById('review-ignored-list');
 
-  const pendingStages = state.stages.filter(s => s.stage_status === 'pending');
-  const ignoredStages = state.stages.filter(s => s.stage_status === 'ignored');
+  const pendingStages = sortReviewItemsByTime(state.stages.filter(s => s.stage_status === 'pending'));
+  const ignoredStages = sortReviewItemsByTime(state.stages.filter(s => s.stage_status === 'ignored'));
 
   // 渲染待审核卡片
   if (pendingStages.length === 0) {

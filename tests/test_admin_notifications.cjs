@@ -39,9 +39,27 @@ test('review hall combines legacy pending stages with pending mail events', () =
 
     const items = helpers.getItems('pending');
     assert.equal(items.length, 2);
-    assert.equal(items[0]._reviewKind, 'legacy_stage');
-    assert.equal(items[1]._reviewKind, 'notification');
-    assert.equal(items[1].stage_name, '技术一面');
+    assert.equal(items[0]._reviewKind, 'notification');
+    assert.equal(items[0].stage_name, '技术一面');
+    assert.equal(items[1]._reviewKind, 'legacy_stage');
+});
+
+test('review hall shows newest mixed mail records first and leaves missing dates last', () => {
+    const helpers = loadReviewHelpers(
+        [
+            { id: 'legacy-late', stage_status: 'pending', created_at: '2026-09-03T00:00:00Z' },
+            { id: 'legacy-missing', stage_status: 'pending' },
+        ],
+        [
+            { id: 'notice-early', review_status: 'pending', received_at: '2026-09-01T00:00:00Z' },
+            { id: 'notice-middle', review_status: 'pending', received_at: '2026-09-02T00:00:00Z' },
+        ]
+    );
+
+    assert.deepEqual(
+        Array.from(helpers.getItems('pending'), item => item.id),
+        ['legacy-late', 'notice-middle', 'notice-early', 'legacy-missing']
+    );
 });
 
 test('reminders do not mutate a stage while reschedules only update arrangements', () => {

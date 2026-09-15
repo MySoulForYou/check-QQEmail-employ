@@ -118,6 +118,18 @@ let urgentBannerCloseTimer = null;
 // 1. 🚀 求职全景状态机流转映射矩阵 (State Transition Matrix Helper)
 // ==========================================================================
 function getStageStatusMetaRaw(stage, app) {
+    if (app && (app.overall_status === 'archived' || app.overall_status === 'failed')) {
+        return {
+            icon: '📦',
+            cleanType: '【流程结束】',
+            badgeText: '📦 【流程结束】本轮流程结束 (已归档)',
+            badgeClass: 'badge-gray',
+            nodeIcon: '📦',
+            timelineStatusText: '本轮流程结束 (已归档)',
+            category: 'archived'
+        };
+    }
+
     if (!stage) {
         return {
             icon: '📌',
@@ -460,8 +472,11 @@ function formatDashboardScheduleTime(value) {
 // ==========================================================================
 // 3. 求职推进管道链路生成器 (动态 Progressive Pipeline：按 seq 升序展示)
 // ==========================================================================
-function generatePipelineHTML(stages) {
+function generatePipelineHTML(stages, app) {
     if (!stages || stages.length === 0) {
+        if (app && (app.overall_status === 'archived' || app.overall_status === 'failed')) {
+            return `<span style="color:#64748b;font-size:0.8rem;">− 流程终止</span>`;
+        }
         return `<span style="color:#94a3b8;font-size:0.8rem;">已建档待推进</span>`;
     }
 
@@ -1237,14 +1252,9 @@ async function loadAllData() {
         });
 
         // 待审核任务（pending 状态）与已忽略任务（ignored 状态）
-        const reviewStages = [
-            ...allStages.filter(s => s.stage_status === 'pending').map(s => ({ ...s, _reviewKind: 'legacy_stage' })),
-            ...allStageNotifications.filter(n => n.review_status === 'pending').map(toReviewDisplayItem),
-        ];
-        const ignoredStages = [
-            ...allStages.filter(s => s.stage_status === 'ignored').map(s => ({ ...s, _reviewKind: 'legacy_stage' })),
-            ...allStageNotifications.filter(n => n.review_status === 'ignored').map(toReviewDisplayItem),
-        ];
+        // 首次加载与页签切换统一按邮件抓取时间从晚到早排列（最新优先）。
+        const reviewStages = getReviewItems('pending');
+        const ignoredStages = getReviewItems('ignored');
 
         // 更新待审角标与已忽略角标
         const badge = document.getElementById('review-badge');
@@ -1725,7 +1735,7 @@ function renderDashboard() {
             </div>
         `;
 
-        const pipelineHTML = generatePipelineHTML(stages);
+        const pipelineHTML = generatePipelineHTML(stages, app);
 
         return `
             <tr class="table-clickable-row${app.is_focused ? ' is-focused' : ''}" onclick="openTimelineDrawer('${app.id}')">
@@ -2366,6 +2376,11 @@ function toReviewDisplayItem(notification) {
     };
 }
 
+function getReviewItemTimestamp(item) {
+    const timestamp = new Date(item.received_at || item.created_at || '').getTime();
+    return Number.isFinite(timestamp) ? timestamp : Number.MIN_SAFE_INTEGER;
+}
+
 function getReviewItems(status) {
     const legacy = allStages
         .filter(stage => stage.stage_status === status)
@@ -2373,11 +2388,10 @@ function getReviewItems(status) {
     const notifications = allStageNotifications
         .filter(notification => notification.review_status === status)
         .map(toReviewDisplayItem);
-    return [...legacy, ...notifications].sort((a, b) => {
-        const first = new Date(a.received_at || a.created_at || 0).getTime();
-        const second = new Date(b.received_at || b.created_at || 0).getTime();
-        return first - second;
-    });
+    return [...legacy, ...notifications].sort((a, b) =>
+        getReviewItemTimestamp(b) - getReviewItemTimestamp(a)
+        || String(a.id || '').localeCompare(String(b.id || ''))
+    );
 }
 
 function getReviewItem(itemId, reviewKind = 'legacy_stage') {
