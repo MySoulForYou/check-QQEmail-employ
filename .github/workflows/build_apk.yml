@@ -27,7 +27,10 @@ jobs:
           java-version: '17'
 
       - name: 📱 设置 Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # cmdline-tools 已移除旧版 `tools` 包；只安装仍受支持的 platform-tools。
+          packages: platform-tools
 
       - name: 🟢 设置 Node.js 20.x
         uses: actions/setup-node@v4
