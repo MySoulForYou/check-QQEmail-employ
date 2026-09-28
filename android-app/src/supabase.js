@@ -91,7 +91,7 @@ class SupabaseMobileService {
   }
 
   async fetchApplicationsWithStages() {
-    if (!this.url || !this.key) return { applications: [], stages: [], recruitmentEvents: [], recruitmentEventsError: '' };
+    if (!this.url || !this.key) return { applications: [], stages: [], stageNotifications: [], recruitmentEvents: [], recruitmentEventsError: '' };
 
     const headers = {
       'apikey': this.key,
@@ -108,12 +108,16 @@ class SupabaseMobileService {
     if (!stageRes.ok) throw new Error('拉取环节数据失败');
     const stages = await stageRes.json();
 
-    // 3. 招聘会是独立记录；旧数据库尚未建表时不阻断企业数据加载。
+    // 3. 新版邮件导入先进入独立审核表；旧数据库未建表时仍兼容旧待审环节。
+    const notificationRes = await fetch(`${this.url}/rest/v1/stage_notifications?select=*&order=received_at.asc`, { headers });
+    const stageNotifications = notificationRes.ok ? await notificationRes.json() : [];
+
+    // 4. 招聘会是独立记录；旧数据库尚未建表时不阻断企业数据加载。
     const eventRes = await fetch(`${this.url}/rest/v1/recruitment_events?select=*&order=starts_at.asc`, { headers });
     const recruitmentEvents = eventRes.ok ? await eventRes.json() : [];
     const recruitmentEventsError = eventRes.ok ? '' : '招聘会数据暂不可用，请先执行 recruitment_events.sql。';
 
-    return { applications, stages, recruitmentEvents, recruitmentEventsError };
+    return { applications, stages, stageNotifications, recruitmentEvents, recruitmentEventsError };
   }
 
   async updateApplicationFocus(appId, isFocused) {
@@ -167,6 +171,31 @@ class SupabaseMobileService {
     });
     if (!res.ok) throw new Error('更新状态失败');
     return await res.json();
+  }
+
+  async createStage(stageData) {
+    return this.writeRecord('application_stages', 'POST', stageData);
+  }
+
+  async updateStage(stageId, changes) {
+    return this.writeRecord('application_stages', 'PATCH', {
+      ...changes,
+      updated_at: changes.updated_at || new Date().toISOString()
+    }, stageId);
+  }
+
+  async updateApplication(appId, changes) {
+    return this.writeRecord('applications', 'PATCH', {
+      ...changes,
+      updated_at: changes.updated_at || new Date().toISOString()
+    }, appId);
+  }
+
+  async updateStageNotification(notificationId, changes) {
+    return this.writeRecord('stage_notifications', 'PATCH', {
+      ...changes,
+      updated_at: changes.updated_at || new Date().toISOString()
+    }, notificationId);
   }
 
   async updateStageAndApplication(stageId, appId, stageData, appData) {
